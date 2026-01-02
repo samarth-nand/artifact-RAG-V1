@@ -1,20 +1,36 @@
 import { z } from "zod";
 
 // Grade Result Schema
-export const DimensionScoreSchema = z.object({
-  score: z.number().min(0).max(100),
-  out_of: z.number().min(0).max(100).default(100),
-  rationale: z.string(),
-  evidence_from_transcript: z.array(z.string()),
-  citations: z.array(
-    z.object({
-      chunk_id: z.string().uuid(),
-      title: z.string(),
-      page_start: z.number(),
-      page_end: z.number(),
-    })
-  ),
-});
+export const DimensionScoreSchema = z.preprocess(
+  (value) => {
+    // Be tolerant: some model outputs return a bare number per dimension.
+    // Coerce it into the richer schema so the rest of the pipeline works.
+    if (typeof value === "number") {
+      return {
+        score: value,
+        out_of: 100,
+        rationale: "",
+        evidence_from_transcript: [],
+        citations: [],
+      };
+    }
+    return value;
+  },
+  z.object({
+    score: z.number().min(0).max(100),
+    out_of: z.number().min(0).max(100).default(100),
+    rationale: z.string(),
+    evidence_from_transcript: z.array(z.string()),
+    citations: z.array(
+      z.object({
+        chunk_id: z.string().uuid(),
+        title: z.string(),
+        page_start: z.number(),
+        page_end: z.number(),
+      })
+    ),
+  })
+);
 
 export const CitationSchema = z.object({
   chunk_id: z.string().uuid(),

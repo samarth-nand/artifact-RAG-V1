@@ -1,0 +1,1 @@
+ALTER TABLE "kb_chunks" ALTER COLUMN "embedding" SET DATA TYPE text;

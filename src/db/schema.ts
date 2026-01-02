@@ -3,13 +3,11 @@ import {
   text,
   timestamp,
   uuid,
-  vector,
   integer,
   jsonb,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 
 // Knowledge Base Tables
 export const kbDocuments = pgTable("kb_documents", {
@@ -34,17 +32,13 @@ export const kbChunks = pgTable(
     section: text("section"),
     content: text("content").notNull(),
     contentTokens: integer("content_tokens"),
-    embedding: vector("embedding", { dimensions: 1536 }),
+    embedding: text("embedding"), // JSON string representation of vector
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => ({
     documentChunkIdx: uniqueIndex("kb_chunks_document_chunk_idx").on(
       table.documentId,
       table.chunkIndex
-    ),
-    embeddingIdx: index("kb_chunks_embedding_idx").using(
-      "ivfflat",
-      table.embedding
     ),
   })
 );

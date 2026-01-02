@@ -1,5 +1,4 @@
 import { SSTConfig } from "sst";
-import { Api, Bucket } from "sst/constructs";
 
 export default {
   config(_input) {
@@ -8,7 +7,9 @@ export default {
       region: "us-east-1",
     };
   },
-  stacks(app) {
+  async stacks(app) {
+    const { Api, Bucket } = await import("sst/constructs");
+    
     app.stack(function Stack({ stack }) {
       // S3 Bucket for audio uploads
       const audioBucket = new Bucket(stack, "audio-bucket", {

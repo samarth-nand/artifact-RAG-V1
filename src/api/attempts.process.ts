@@ -1,7 +1,7 @@
 import { getDb } from "../db";
 import { attempts, attemptResults } from "../db/schema";
 import { eq, and } from "drizzle-orm";
-import { downloadAudioFromS3 } from "../util/s3";
+import { loadAudioLocally } from "../util/local-storage";
 import { transcribeAudio } from "../llm/transcribe";
 import { gradeAttempt } from "../llm/grade";
 import { retrieveChunks } from "../kb/retrieve";
@@ -36,8 +36,8 @@ export async function processAttempt(
       .where(eq(attempts.id, attemptId as any));
 
     // Download audio from S3
-    logger.info("Downloading audio from S3", { key: attempt.audioS3Key });
-    const audioBuffer = await downloadAudioFromS3(attempt.audioS3Key);
+    logger.info("Downloading audio from local storage", { key: attempt.audioS3Key });
+    const audioBuffer = await loadAudioLocally(attempt.audioS3Key);
 
     // Transcribe audio
     logger.info("Starting transcription");

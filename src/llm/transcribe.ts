@@ -1,14 +1,13 @@
 import { getEnv } from "../shared/env";
 import { logger } from "../shared/logger";
-
-const openai = require("openai");
+import OpenAI from "openai";
 
 export async function transcribeAudio(
   audioBuffer: Buffer
 ): Promise<string> {
   try {
     const env = getEnv();
-    const client = new openai.OpenAI({
+    const client = new OpenAI({
       apiKey: env.OPENAI_API_KEY,
     });
 

@@ -1,6 +1,5 @@
 import { getDb } from "../db";
 import { attempts } from "../db/schema";
-import { generatePresignedUploadUrl } from "../util/s3";
 import { logger } from "../shared/logger";
 import { CreateAttemptRequest, CreateAttemptResponseSchema } from "../shared/zod";
 import { randomUUID } from "crypto";
@@ -25,8 +24,8 @@ export async function createAttempt(
       })
       .returning();
 
-    // Generate presigned upload URL
-    const uploadUrl = await generatePresignedUploadUrl(audioKey, 3600);
+    // For local development, return a local upload URL
+    const uploadUrl = `http://localhost:3000/audio/${audioKey}`;
 
     logger.info("Created attempt", { attemptId, userId: request.userId });
 

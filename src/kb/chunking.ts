@@ -1,8 +1,7 @@
 import { logger } from "../shared/logger";
+import { encodingForModel } from "js-tiktoken";
 
-const tokenizer = require("js-tiktoken");
-
-const enc = tokenizer.encoding_for_model("gpt-4o");
+const enc = encodingForModel("gpt-4o");
 
 // Target chunk size in tokens
 const TARGET_CHUNK_TOKENS = 700;
