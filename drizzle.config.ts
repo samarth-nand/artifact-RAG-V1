@@ -11,6 +11,6 @@ export default {
     url: env.DATABASE_URL,
   },
   introspect: {
-    casing: "snake_case",
+    casing: "preserve",
   },
 } satisfies Config;

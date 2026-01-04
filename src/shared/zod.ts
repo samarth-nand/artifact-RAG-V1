@@ -88,6 +88,119 @@ export const GetAttemptResponseSchema = z.object({
   error: z.string().optional(),
 });
 
+// Session flow schemas - REALTIME
+export const SessionStateEnum = z.enum([
+  "LIVE",
+  "GRADING",
+  "DONE",
+  "FAILED",
+]);
+
+export const CreateSessionRequestSchema = z.object({
+  userId: z.string().min(1),
+  questionId: z.string().min(1),
+});
+
+export const RealtimeClientSecretSchema = z.object({
+  value: z.string(),
+  expires_at: z.string(),
+});
+
+export const CreateSessionResponseSchema = z.object({
+  sessionId: z.string().uuid(),
+  realtimeSessionId: z.string(),
+  clientSecret: RealtimeClientSecretSchema,
+  instructions: z.string(),
+  questionText: z.string(),
+});
+
+export const EndSessionRequestSchema = z.object({
+  transcriptEvents: z.array(
+    z.object({
+      type: z.enum(["user.transcript", "assistant.transcript"]),
+      text: z.string(),
+      timestamp: z.number(),
+    })
+  ),
+});
+
+export const GetSessionResponseSchema = z.object({
+  sessionId: z.string().uuid(),
+  state: SessionStateEnum,
+  questionText: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const GetSessionResultsResponseSchema = z.object({
+  sessionId: z.string().uuid(),
+  state: SessionStateEnum,
+  finalTranscript: z.string(),
+  result: GradeResultSchema,
+});
+
+// Legacy schemas (kept for backwards compatibility if needed)
+export const StartSessionRequestSchema = z.object({
+  userId: z.string().min(1),
+  questionId: z.string().min(1),
+  voice: z.string().optional(),
+});
+
+export const StartSessionResponseSchema = z.object({
+  sessionId: z.string().uuid(),
+  questionAudioUrl: z.string().url(),
+  state: SessionStateEnum,
+  questionText: z.string(),
+});
+
+export const ClarifyRequestSchema = z.object({
+  transcript: z.string().optional(),
+  audioBase64: z.string().optional(),
+  contentType: z.string().optional(),
+});
+
+export const ClarifyResponseSchema = z.object({
+  sessionId: z.string().uuid(),
+  state: SessionStateEnum,
+  assistantText: z.string(),
+  assistantAudioUrl: z.string().url().optional(),
+});
+
+export const AnswerRequestSchema = z.object({
+  transcript: z.string().optional(),
+  audioBase64: z.string().optional(),
+  contentType: z.string().optional(),
+});
+
+export const FollowupRequestSchema = AnswerRequestSchema;
+
+export const SessionStatusResponseSchema = z.object({
+  sessionId: z.string().uuid(),
+  state: SessionStateEnum,
+  latestAssistantText: z.string().optional(),
+  latestAssistantAudioUrl: z.string().url().optional(),
+  turns: z.array(
+    z.object({
+      id: z.string().uuid(),
+      role: z.enum(["user", "assistant"]),
+      type: z.string(),
+      transcript: z.string().optional(),
+      text: z.string().optional(),
+      ttsUrl: z.string().url().optional(),
+      audioUrl: z.string().url().optional(),
+      createdAt: z.string().optional(),
+    })
+  ),
+});
+
+export const SessionResultsResponseSchema = z.object({
+  sessionId: z.string().uuid(),
+  finalTranscript: z.string(),
+  state: SessionStateEnum,
+  result: GradeResultSchema,
+  summaryTtsUrl: z.string().url().optional(),
+});
+
 export type CreateAttemptRequest = z.infer<typeof CreateAttemptRequestSchema>;
 export type CreateAttemptResponse = z.infer<
   typeof CreateAttemptResponseSchema

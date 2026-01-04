@@ -1,25 +1,97 @@
 # artifact-grader
 
-A production-grade, AI-powered grading system for student artifacts (PM interview responses) using RAG (Retrieval Augmented Generation), pgvector semantic search, and LLM-based evaluation.
+A production-grade, AI-powered grading system for real-time speech-based PM interviews using OpenAI Realtime API, RAG (Retrieval Augmented Generation), pgvector semantic search, and LLM-based evaluation.
 
-## Architecture
+## Architecture Overview
 
 **Stack:**
 - **Language:** TypeScript (Node.js 20)
-- **Infra:** AWS Lambda + API Gateway + S3 (via SST v3)
+- **Infra:** AWS Lambda + API Gateway (via SST v3)
 - **Database:** Neon Postgres with pgvector extension
 - **ORM:** Drizzle ORM (with full migrations support)
 - **Vector Search:** pgvector (cosine similarity + MMR diversity)
-- **LLM:** OpenAI (Whisper for transcription, text-embedding-3-small for embeddings, configurable chat model for grading)
+- **Realtime:** OpenAI Realtime API (speech-to-speech)
+- **LLM:** OpenAI (text-embedding-3-small for embeddings, configurable chat model for grading)
 - **PDF Ingestion:** Local CLI script with pdf-parse
+
+## Architecture: Two Separate Flows
+
+### 🎙️ Flow A: Realtime Interview (NEW)
+The user has a **real-time spoken conversation** with the AI.
+
+```
+Client                          Backend                         OpenAI Realtime
+  |                               |                                   |
+  |--- POST /sessions ---------->|                                   |
+  |                               |-- create ephemeral session ----->|
+  |                               |<-- clientSecret, instructions ---|
+  |<-- realtimeConfig ------------|                                   |
+  |                                                                   |
+  |--- WebRTC connect ------------------------------------------------>|
+  |                               [Realtime conversation]             |
+  |<-- Audio stream (live) --------|<-- Live assistant responses ---|
+  |-- Mic audio (live) ----------->|-- User audio ----->|
+  |                               |                                   |
+  |--- POST /sessions/{id}/end --->| Store transcript turns          |
+  |                               | Set state = GRADING             |
+  |<-- OK -------------------------|                                   |
+```
+
+**Client responsibilities:**
+- Establish WebRTC connection using clientSecret
+- Stream user's microphone audio to the model
+- Play model's audio responses in real-time
+- Send transcript events back to backend when session ends
+
+**Backend responsibilities:**
+- Create ephemeral realtime session
+- Store interview_session (with realtimeSessionId)
+- Store transcript turns as they arrive
+- Trigger grading when session ends
+
+### 🏆 Flow B: Grading (UNCHANGED)
+After the interview ends, we **assemble the transcript and grade it**.
+
+```
+Backend                    KB                          LLM
+  |                        |                           |
+  |--- Assemble transcript--|                          |
+  |--- Retrieve chunks (RAG)-->| pgvector search       |
+  |<-- Relevant chunks --------|                       |
+  |--- Grade with citations -->|-- embeddings, chunks  |
+  |<-- Grade Result + citations|<-- JSON output -------|
+  |                        |                           |
+  | Store results in DB
+  | Return GradeResult
+```
+
+**This flow is identical to before**, except the input transcript now comes from realtime turns instead of audio upload → transcription.
+
+## Key Changes from Previous Architecture
+
+| Aspect | Before (TTS) | After (Realtime) |
+|--------|--------------|------------------|
+| **User speaks** | Records audio, uploads | Mic streams live to model |
+| **Assistant responds** | Generates text → TTS → plays audio file | Model generates audio in real-time |
+| **Latency** | 2–5 seconds per turn | < 500ms per turn |
+| **Storage** | Raw audio files + transcripts | Only transcripts + metadata |
+| **Interview flow** | Request/response (clarify → answer → followup) | Continuous conversation |
+| **Session states** | CLARIFY → ANSWERING → FOLLOWUP → GRADING → DONE | LIVE → GRADING → DONE |
 
 ## Features
 
-✅ **Audio Upload & Transcription**
-- Presigned S3 URLs for secure client-side uploads
-- Whisper API transcription
+✅ **Real-Time Speech-to-Speech**
+- OpenAI Realtime API for live conversation
+- WebRTC connection between client and model
+- Sub-500ms latency
 
-✅ **RAG-Grounded Evaluation**
+✅ **Intelligent Interviewer**
+- Asks follow-up questions (max 2)
+- Answers clarification questions (without giving away answers)
+- Never mentions grading or rubrics
+- Natural, conversational tone
+
+✅ **RAG-Grounded Evaluation (Unchanged)**
 - Retrieve relevant book excerpts using semantic search
 - Grade responses using only provided context
 - Automatic citation generation with chunk IDs and page ranges
@@ -69,10 +141,8 @@ Edit `.env` with your credentials:
 ```env
 DATABASE_URL=postgresql://user:password@host/database
 OPENAI_API_KEY=sk-...
-OPENAI_TRANSCRIBE_MODEL=whisper-1
 OPENAI_EMBED_MODEL=text-embedding-3-small
 OPENAI_GRADE_MODEL=gpt-4o-mini
-AUDIO_BUCKET_NAME=artifact-grader-audio-dev
 AWS_REGION=us-east-1
 LOG_LEVEL=info
 ```
@@ -114,10 +184,10 @@ SST dev mode started.
 
 ### 6. Test Endpoints
 
-#### Create an Attempt
+#### Create a Realtime Session
 
 ```bash
-curl -X POST http://localhost:3000/attempts \
+curl -X POST http://localhost:3000/sessions \
   -H "Content-Type: application/json" \
   -d '{
     "userId": "user-123",
@@ -128,32 +198,97 @@ curl -X POST http://localhost:3000/attempts \
 Response:
 ```json
 {
-  "attemptId": "550e8400-e29b-41d4-a716-446655440000",
-  "uploadUrl": "https://bucket.s3.amazonaws.com/...",
-  "audioKey": "audio/550e8400-e29b-41d4-a716-446655440000.webm"
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "realtimeSessionId": "sess_...",
+  "clientSecret": {
+    "value": "sk_live_...",
+    "expires_at": "2025-01-04T12:34:56Z"
+  },
+  "instructions": "You are an interviewer...",
+  "questionText": "Your question here?"
 }
 ```
 
-#### Upload Audio
+#### Connect to Realtime (Client-Side, Pseudo-Code)
 
-Use the presigned URL to upload your audio file (WebM format):
-```bash
-curl -X PUT "<PRESIGNED_URL>" \
-  --data-binary @audio.webm \
-  -H "Content-Type: audio/webm"
+```typescript
+// Use the clientSecret to establish WebRTC connection
+const pc = new RTCPeerConnection();
+const audioElements = { local: ..., remote: ... };
+
+// Stream user's mic
+const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+// Handle incoming audio from model
+pc.ontrack = (event) => {
+  audioElements.remote.srcObject = event.streams[0];
+};
+
+// Establish connection (details depend on OpenAI Realtime API)
+const offer = await pc.createOffer();
+await pc.setLocalDescription(offer);
+// Send to OpenAI via WebRTC...
 ```
 
-#### Process Attempt
+#### End Interview & Get Results
 
 ```bash
-curl -X POST http://localhost:3000/attempts/550e8400-e29b-41d4-a716-446655440000/process
+curl -X POST http://localhost:3000/sessions/550e8400-e29b-41d4-a716-446655440000/end \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transcriptEvents": [
+      {
+        "type": "assistant.transcript",
+        "text": "Tell me about your approach...",
+        "timestamp": 1704282896000
+      },
+      {
+        "type": "user.transcript",
+        "text": "I would first understand the problem...",
+        "timestamp": 1704282900000
+      }
+    ]
+  }'
 ```
 
-Response (includes transcript + grading result):
+Response:
 ```json
 {
-  "status": "done",
-  "transcript": "...",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "state": "GRADING"
+}
+```
+
+#### Poll for Session Status
+
+```bash
+curl http://localhost:3000/sessions/550e8400-e29b-41d4-a716-446655440000
+```
+
+Response:
+```json
+{
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "state": "GRADING",
+  "questionText": "Tell me about your approach...",
+  "createdAt": "2025-01-04T12:00:00Z",
+  "updatedAt": "2025-01-04T12:05:00Z"
+}
+```
+
+#### Get Grading Results
+
+```bash
+curl http://localhost:3000/sessions/550e8400-e29b-41d4-a716-446655440000/results
+```
+
+Response:
+```json
+{
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "state": "DONE",
+  "finalTranscript": "Interviewer: Tell me about...\n\nCandidate: I would...",
   "result": {
     "overall_score": 82,
     "dimension_scores": {
@@ -182,24 +317,27 @@ Response (includes transcript + grading result):
 }
 ```
 
-#### Get Attempt Status
-
-```bash
-curl http://localhost:3000/attempts/550e8400-e29b-41d4-a716-446655440000
-```
-
 ## Folder Structure
 
 ```
 artifact-grader/
 ├── src/
+│   ├── api/
+│   │   ├── sessions.ts         # POST /sessions, GET /sessions/{id}, etc.
+│   │   ├── attempts.*.ts       # DEPRECATED (legacy endpoints)
+│   │   ├── cors.ts
+│   │   └── index.ts            # Lambda handlers
+│   ├── realtime/               # NEW: Realtime interview flow
+│   │   ├── session.ts          # Create ephemeral realtime sessions
+│   │   ├── instructions.ts     # Build system prompt for interviewer
+│   │   └── events.ts           # Process transcript events
 │   ├── shared/
 │   │   ├── env.ts              # Environment validation (Zod)
 │   │   ├── types.ts            # Question bank + shared types
 │   │   ├── zod.ts              # API schemas
 │   │   └── logger.ts           # Structured logging
 │   ├── db/
-│   │   ├── schema.ts           # Drizzle schema (documents, chunks, attempts, results)
+│   │   ├── schema.ts           # Drizzle schema (documents, chunks, sessions, turns)
 │   │   ├── index.ts            # Database initialization
 │   │   └── migrations/         # Drizzle migrations (auto-generated)
 │   ├── kb/
@@ -207,18 +345,20 @@ artifact-grader/
 │   │   ├── chunking.ts         # Text chunking with overlap
 │   │   ├── retrieve.ts         # pgvector semantic search + MMR
 │   │   └── ingestPdf.ts        # PDF ingestion with checksums
+│   ├── interview/
+│   │   ├── stateMachine.ts     # DEPRECATED (legacy state machine)
+│   │   ├── assembleAnswer.ts   # Assemble final transcript
+│   │   └── questionBank.ts     # Question definitions
 │   ├── llm/
 │   │   ├── openai.ts           # OpenAI client initialization
-│   │   ├── transcribe.ts       # Whisper transcription
+│   │   ├── transcribe.ts       # DEPRECATED (no longer used)
 │   │   ├── grade.ts            # Grading logic with retry + JSON repair
-│   │   └── prompts.ts          # System + user prompts
-│   ├── api/
-│   │   ├── attempts.create.ts  # POST /attempts
-│   │   ├── attempts.process.ts # POST /attempts/:id/process
-│   │   ├── attempts.get.ts     # GET /attempts/:id
-│   │   └── index.ts            # Lambda handlers
+│   │   └── prompts.ts          # Grading prompts
+│   ├── tts/                    # DEPRECATED (kept for reference only)
+│   │   ├── speak.ts
+│   │   └── voices.ts
 │   └── util/
-│       ├── s3.ts               # Presigned URLs + S3 operations
+│       ├── s3.ts               # S3 operations
 │       ├── hash.ts             # Checksum generation
 │       └── time.ts             # Timestamp utilities
 ├── scripts/
@@ -232,70 +372,50 @@ artifact-grader/
 
 ## Database Schema
 
-### kb_documents
+### interview_sessions (UPDATED)
 ```sql
-CREATE TABLE kb_documents (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  source_type TEXT NOT NULL,  -- "pdf"
-  source_uri TEXT,
-  checksum TEXT UNIQUE NOT NULL,
-  created_at TIMESTAMP DEFAULT now()
-);
-```
-
-### kb_chunks
-```sql
-CREATE TABLE kb_chunks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  document_id UUID REFERENCES kb_documents(id) ON DELETE CASCADE,
-  chunk_index INTEGER NOT NULL,
-  page_start INTEGER NOT NULL,
-  page_end INTEGER NOT NULL,
-  section TEXT,
-  content TEXT NOT NULL,
-  content_tokens INTEGER,
-  embedding vector(1536),  -- pgvector
-  created_at TIMESTAMP DEFAULT now(),
-  UNIQUE(document_id, chunk_index)
-);
-CREATE INDEX kb_chunks_embedding_idx ON kb_chunks USING ivfflat (embedding);
-```
-
-### attempts
-```sql
-CREATE TABLE attempts (
+CREATE TABLE interview_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT NOT NULL,
   question_id TEXT NOT NULL,
-  audio_s3_key TEXT,
-  status TEXT NOT NULL,  -- "created" | "uploaded" | "transcribing" | "grading" | "done" | "failed"
-  transcript TEXT,
+  state TEXT NOT NULL,              -- "LIVE" | "GRADING" | "DONE" | "FAILED"
+  question_text TEXT NOT NULL,
+  realtime_session_id TEXT,         -- OpenAI realtime session ID
+  final_transcript TEXT,            -- Assembled transcript after interview
   error TEXT,
   created_at TIMESTAMP DEFAULT now(),
   updated_at TIMESTAMP DEFAULT now()
 );
-CREATE INDEX attempts_user_id_idx ON attempts(user_id);
-CREATE INDEX attempts_status_idx ON attempts(status);
+CREATE INDEX interview_sessions_user_idx ON interview_sessions(user_id);
+CREATE INDEX interview_sessions_state_idx ON interview_sessions(state);
+CREATE INDEX interview_sessions_created_idx ON interview_sessions(created_at);
 ```
 
-### attempt_results
+### interview_turns (UPDATED)
 ```sql
-CREATE TABLE attempt_results (
+CREATE TABLE interview_turns (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  attempt_id UUID UNIQUE REFERENCES attempts(id) ON DELETE CASCADE,
-  overall_score INTEGER NOT NULL,
-  dimension_scores JSONB NOT NULL,
-  feedback JSONB NOT NULL,
-  citations JSONB NOT NULL,
+  session_id UUID NOT NULL REFERENCES interview_sessions(id) ON DELETE CASCADE,
+  role TEXT NOT NULL,                -- "user" | "assistant"
+  type TEXT NOT NULL,                -- "question" | "clarify" | "answer" | "followup"
+  transcript TEXT NOT NULL,          -- Always required (no audio blobs)
   created_at TIMESTAMP DEFAULT now()
 );
+CREATE INDEX interview_turns_session_idx ON interview_turns(session_id, created_at);
 ```
+
+### kb_documents & kb_chunks (UNCHANGED)
+See previous README for full schema. These are used identically in the grading flow.
+
+### attempts & attempt_results (DEPRECATED)
+Kept in database for backwards compatibility but no longer actively used.
 
 ## API Endpoints
 
-### POST /attempts
-Create a new grading attempt and get a presigned S3 upload URL.
+### Realtime Interview Endpoints
+
+#### POST /sessions
+Create a new realtime interview session.
 
 **Request:**
 ```json
@@ -308,9 +428,14 @@ Create a new grading attempt and get a presigned S3 upload URL.
 **Response:**
 ```json
 {
-  "attemptId": "uuid",
-  "uploadUrl": "https://s3.../presigned-url",
-  "audioKey": "string"
+  "sessionId": "uuid",
+  "realtimeSessionId": "string",
+  "clientSecret": {
+    "value": "string",
+    "expires_at": "ISO 8601 timestamp"
+  },
+  "instructions": "string (system prompt)",
+  "questionText": "string"
 }
 ```
 
@@ -318,16 +443,45 @@ Create a new grading attempt and get a presigned S3 upload URL.
 
 ---
 
-### POST /attempts/{attemptId}/process
-Trigger transcription → KB retrieval → grading.
+#### GET /sessions/{sessionId}
+Get the current state of a session.
 
 **Response:**
 ```json
 {
-  "status": "done" | "failed",
-  "transcript": "string (optional)",
-  "result": { GradeResult (optional) },
-  "error": "string (optional)"
+  "sessionId": "uuid",
+  "state": "LIVE" | "GRADING" | "DONE" | "FAILED",
+  "questionText": "string",
+  "createdAt": "ISO 8601",
+  "updatedAt": "ISO 8601"
+}
+```
+
+**Status Codes:** `200`, `404`, `500`
+
+---
+
+#### POST /sessions/{sessionId}/end
+End the realtime session and trigger grading.
+
+**Request:**
+```json
+{
+  "transcriptEvents": [
+    {
+      "type": "user.transcript" | "assistant.transcript",
+      "text": "string",
+      "timestamp": "number (milliseconds since epoch)"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "sessionId": "uuid",
+  "state": "GRADING"
 }
 ```
 
@@ -335,21 +489,27 @@ Trigger transcription → KB retrieval → grading.
 
 ---
 
-### GET /attempts/{attemptId}
-Poll for attempt status and results.
+#### GET /sessions/{sessionId}/results
+Get grading results (available after state = "DONE").
 
 **Response:**
 ```json
 {
-  "attemptId": "uuid",
-  "status": "created" | "uploaded" | "transcribing" | "grading" | "done" | "failed",
-  "transcript": "string (optional)",
-  "result": { GradeResult (optional) },
-  "error": "string (optional)"
+  "sessionId": "uuid",
+  "state": "DONE" | "GRADING" | "FAILED",
+  "finalTranscript": "string",
+  "result": { GradeResult } (optional)
 }
 ```
 
 **Status Codes:** `200`, `404`, `500`
+
+### Legacy Endpoints (Deprecated)
+
+The following endpoints are **deprecated** but kept for backwards compatibility:
+- `POST /attempts`
+- `POST /attempts/{attemptId}/process`
+- `GET /attempts/{attemptId}`
 
 ## Grading Output Schema
 
@@ -387,27 +547,37 @@ interface Citation {
 |----------|---------|-------------|
 | `DATABASE_URL` | — | Postgres connection string (required) |
 | `OPENAI_API_KEY` | — | OpenAI API key (required) |
-| `OPENAI_TRANSCRIBE_MODEL` | `whisper-1` | Whisper model for audio |
 | `OPENAI_EMBED_MODEL` | `text-embedding-3-small` | Embedding model |
 | `OPENAI_GRADE_MODEL` | `gpt-4o-mini` | LLM for grading |
-| `AUDIO_BUCKET_NAME` | — | S3 bucket for audio uploads |
 | `AWS_REGION` | `us-east-1` | AWS region |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `NODE_ENV` | `development` | Node environment |
 
+**Removed from previous version:**
+- `OPENAI_TRANSCRIBE_MODEL` (no longer needed; realtime handles transcription)
+- `OPENAI_TTS_MODEL` (no longer needed; realtime generates audio)
+- `AUDIO_BUCKET_NAME` (only used by deprecated attempts flow)
+
 ### Questions & Rubric
 
-Edit `src/shared/types.ts` to add/modify questions:
+Edit `src/interview/questionBank.ts` to add/modify questions:
 
 ```typescript
-export const QUESTION_BANK: Record<string, Question> = {
-  pm_case_001: {
-    questionId: "pm_case_001",
-    questionText: "Your question here?",
-    rubricDimensions: ["Dimension 1", "Dimension 2", ...],
-  },
-  // Add more questions
-};
+export function getQuestion(questionId: string): Question {
+  const questions: Record<string, Question> = {
+    pm_case_001: {
+      questionId: "pm_case_001",
+      questionText: "Tell me about a time you...",
+      rubricDimensions: [
+        { name: "Problem Understanding", out_of: 25, description: "..." },
+        { name: "Analytical Approach", out_of: 25, description: "..." },
+        // ...
+      ],
+    },
+    // Add more questions
+  };
+  return questions[questionId];
+}
 ```
 
 ## Development
@@ -467,7 +637,6 @@ npm run deploy
 
 SST will:
 - Package the Lambda functions
-- Create/update S3 bucket
 - Deploy API Gateway routes
 - Output the API URL
 
@@ -499,22 +668,6 @@ npm run ingest -- --file "./books/Decode and Conquer.pdf" --title "Decode and Co
 npm run ingest -- --file "./books/Secrets of the Product Manager Interview.pdf" --title "Secrets of the Product Manager Interview"
 ```
 
-### Batch Ingestion with Mapping
-
-Create `book_titles.json`:
-```json
-{
-  "cracking.pdf": "Cracking the PM Interview",
-  "decode.pdf": "Decode and Conquer",
-  "secrets.pdf": "Secrets of the Product Manager Interview"
-}
-```
-
-Then:
-```bash
-npm run ingest -- --dir ./books --titleMap ./book_titles.json
-```
-
 ## Troubleshooting
 
 ### Database Connection Error
@@ -523,11 +676,11 @@ npm run ingest -- --dir ./books --titleMap ./book_titles.json
 - Verify pgvector extension: `CREATE EXTENSION vector;`
 - Check firewall/network access
 
-### Transcription Fails
+### Realtime Session Creation Fails
 
-- Verify audio format (WebM or WAV supported)
-- Check `OPENAI_API_KEY`
+- Verify `OPENAI_API_KEY` is valid
 - Check OpenAI quota/rate limits
+- Ensure model `gpt-4o-realtime-preview-2024-12-17` is available
 
 ### Grading Returns Invalid JSON
 
@@ -541,21 +694,15 @@ npm run ingest -- --dir ./books --titleMap ./book_titles.json
 - Re-running the same PDF will skip (idempotent)
 - To force re-ingestion, delete the document row in Postgres
 
-### S3 Upload Fails
-
-- Verify bucket exists and Lambda has IAM permissions
-- Check presigned URL expiration
-- Ensure `AUDIO_BUCKET_NAME` is correct
-
 ## Future Enhancements
 
-- [ ] SQS-based async processing (move `processAttempt` to worker)
-- [ ] Redis caching for embeddings
-- [ ] Multi-modal grading (video + audio)
-- [ ] Custom rubric templates
-- [ ] Feedback analytics dashboard
-- [ ] A/B testing of grading prompts
-- [ ] Support for multiple LLM providers (Anthropic, local models)
+- [ ] Support for multiple languages
+- [ ] Custom avatar/voice for assistant
+- [ ] Session recording + playback
+- [ ] Real-time coaching hints for interviewer
+- [ ] A/B testing of interview questions
+- [ ] Analytics dashboard for interview performance
+- [ ] Export interview transcript to PDF
 
 ## Contributing
 

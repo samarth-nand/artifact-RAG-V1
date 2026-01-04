@@ -1,5 +1,5 @@
-import { QUESTION_BANK, DEFAULT_RUBRIC_DIMENSIONS } from "../shared/types";
 import { RetrievedChunk } from "../kb/retrieve";
+import { getQuestion } from "../interview/questionBank";
 
 export interface GradingContext {
   questionId: string;
@@ -33,12 +33,8 @@ CRITICAL: Respond with ONLY the JSON object, nothing else.`;
 }
 
 export function buildUserPrompt(context: GradingContext): string {
-  const question = QUESTION_BANK[context.questionId];
-  if (!question) {
-    throw new Error(`Unknown question: ${context.questionId}`);
-  }
-
-  const rubricDimensions = question.rubricDimensions || DEFAULT_RUBRIC_DIMENSIONS;
+  const question = getQuestion(context.questionId);
+  const rubricDimensions = question.rubricDimensions;
 
   const retrievedContext = context.retrievedChunks
     .map(
@@ -59,7 +55,7 @@ Candidate's Transcript:
 ${context.transcript}
 
 Rubric Dimensions to Score:
-${rubricDimensions.map((d) => `- ${d}`).join("\n")}
+${rubricDimensions.map((d) => `- ${d.name} (${d.out_of}): ${d.description}`).join("\n")}
 
 Relevant Knowledge Base Excerpts:
 ${retrievedContext}

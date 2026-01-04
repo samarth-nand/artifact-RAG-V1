@@ -1,468 +1,359 @@
-# Architecture & Design
+# Architecture & Design (Realtime)
 
 ## System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Client Application                       │
-├─────────────────────────────────────────────────────────────┤
-│  1. POST /attempts → Get upload URL + attempt ID            │
-│  2. Upload audio to S3 (presigned)                          │
-│  3. POST /attempts/{id}/process → Trigger grading          │
-│  4. Poll GET /attempts/{id} → Retrieve results             │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌──────────────────────────────────────────────────────────────┐
-│                    AWS Infrastructure                         │
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌──────────────┐      ┌─────────────┐     ┌──────────────┐ │
-│  │ API Gateway  │──────│   Lambda    │────→│  S3 Bucket   │ │
-│  │ (REST API)   │      │ (Handlers)  │     │ (Audio)      │ │
-│  └──────────────┘      └─────────────┘     └──────────────┘ │
-│                              ↓                                │
-│                        ┌──────────────────────┐              │
-│                        │  Processing Logic    │              │
-│                        │  1. Transcribe       │              │
-│                        │  2. Retrieve KB      │              │
-│                        │  3. Grade with LLM   │              │
-│                        │  4. Store Results    │              │
-│                        └──────────────────────┘              │
-│                              ↓                                │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │         Neon Postgres (pgvector)                       │ │
-│  ├────────────────────────────────────────────────────────┤ │
-│  │ • kb_documents (titles, checksums)                    │ │
-│  │ • kb_chunks (text, page ranges, embeddings)           │ │
-│  │ • attempts (status, transcripts)                      │ │
-│  │ • attempt_results (scores, feedback, citations)       │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                               │
-└──────────────────────────────────────────────────────────────┘
-                            ↓
-┌──────────────────────────────────────────────────────────────┐
-│                    External Services                          │
-├──────────────────────────────────────────────────────────────┤
-│  • OpenAI: Transcription, Embeddings, Grading               │
-│  • Neon: Managed Postgres with pgvector                     │
-└──────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────┐
+│              Browser / Mobile Client               │
+├────────────────────────────────────────────────────┤
+│  POST /sessions → Get realtime config              │
+│  WebRTC ↔ OpenAI Realtime (speech-to-speech)      │
+│  POST /sessions/{id}/end → End interview           │
+│  GET /sessions/{id}/results → Fetch grade          │
+└────────────────────────────────────────────────────┘
+              ↓              ↓              ↓
+       ┌──────────────────────────────────────┐
+       │     AWS Lambda + API Gateway         │
+       ├──────────────────────────────────────┤
+       │  • Session management                │
+       │  • Realtime config creation          │
+       │  • Transcript storage                │
+       │  • Grading orchestration             │
+       └──────────────────────────────────────┘
+              ↓              ↓              ↓
+     ┌─────────────┐  ┌──────────────┐  ┌──────────────┐
+     │    Neon     │  │   OpenAI     │  │   OpenAI     │
+     │  Postgres   │  │  Realtime    │  │   LLM        │
+     │ (pgvector)  │  │  (speech)    │  │  (grading)   │
+     └─────────────┘  └──────────────┘  └──────────────┘
 ```
 
-## Component Architecture
+## Two Separate Flows
 
-### 1. API Layer (`src/api/`)
-
-**Handlers:**
-- `postAttempts` - Create attempt + presigned URL
-- `postProcessAttempt` - Trigger transcription → grading
-- `getAttemptHandler` - Poll for results
-
-**Responsibilities:**
-- Validate inputs (Zod schemas)
-- Manage HTTP responses
-- Database transaction handling
-
-### 2. Knowledge Base Layer (`src/kb/`)
-
-**Modules:**
-
-#### `embed.ts`
-- OpenAI embedding API wrapper
-- Token counting (js-tiktoken)
-- Batch embedding support
-
-#### `chunking.ts`
-- Smart text chunking (500-900 tokens)
-- Overlap handling (100 tokens)
-- Token counting and cleanup
-- Section detection (stub)
-
-#### `retrieve.ts`
-- pgvector semantic search (cosine similarity)
-- MMR (Maximal Marginal Relevance) diversity filter
-- Top-K selection algorithm
-- Citation metadata preservation
-
-#### `ingestPdf.ts`
-- PDF text extraction (pdf-parse)
-- Checksum-based deduplication
-- Batch + single file ingestion
-- Page boundary preservation
-
-### 3. LLM Layer (`src/llm/`)
-
-**Modules:**
-
-#### `transcribe.ts`
-- Whisper audio transcription
-- Async streaming support
-- Error handling + retry
-
-#### `grade.ts`
-- Main grading orchestration
-- Retry logic with JSON repair
-- Zod validation
-- Error recovery
-
-#### `prompts.ts`
-- System prompt (enforcement of RAG constraints)
-- User prompt (question + context assembly)
-- Repair prompt (JSON fixing)
-
-### 4. Database Layer (`src/db/`)
-
-**Schema:**
+### Flow A: Real-Time Interview
 
 ```
-kb_documents
-├── id (UUID PK)
-├── title (string)
-├── source_type ("pdf")
-├── source_uri (string)
-├── checksum (string, UNIQUE)
-└── created_at
+Timeline: ~3–5 minutes
 
-kb_chunks
-├── id (UUID PK)
-├── document_id (FK)
-├── chunk_index (int)
-├── page_start/page_end (int)
-├── section (string, nullable)
-├── content (text)
-├── content_tokens (int)
-├── embedding (vector(1536))
-└── indexes:
-    ├── (document_id, chunk_index) UNIQUE
-    └── embedding (IVFFlat for pgvector)
-
-attempts
-├── id (UUID PK)
-├── user_id (string)
-├── question_id (string)
-├── audio_s3_key (string)
-├── status ("created"|"uploaded"|"transcribing"|"grading"|"done"|"failed")
-├── transcript (text, nullable)
-├── error (text, nullable)
-└── indexes:
-    ├── user_id
-    └── status
-
-attempt_results
-├── id (UUID PK)
-├── attempt_id (FK, UNIQUE)
-├── overall_score (int)
-├── dimension_scores (JSONB)
-├── feedback (JSONB)
-├── citations (JSONB)
-└── created_at
+Client                     Lambda                  OpenAI Realtime
+  │                           │                           │
+  ├─ POST /sessions ────────→ │                           │
+  │                           │                           │
+  │  Create Session           │                           │
+  │                           ├─ Create Ephemeral ───────→
+  │                           │ Realtime Session          │
+  │                           │                           │
+  │  Return clientSecret ←────├───────────────────────────┤
+  │  + instructions           │                           │
+  │                           │                           │
+  ├─ WebRTC Offer ───────────────────────────────────────→
+  │  (from SDP)               │                           │
+  │                           │ (Realtime handles SDP)   │
+  │←─ WebRTC Answer ──────────────────────────────────────┤
+  │                           │                           │
+  │★★★ REAL-TIME CONVERSATION (WebRTC) ★★★              │
+  │                           │                           │
+  │ Mic stream ────────────────────────────────────────→ │
+  │  (user audio)             │                           │
+  │                           │ Transcribe               │
+  │                           │ Generate response        │
+  │←────── Audio stream (assistant response) ────────────┤
+  │  (live, realtime)         │                           │
+  │                           │                           │
+  │ [Multiple turns...]       │                           │
+  │                           │                           │
+  ├─ Transcript events ──────→ │                           │
+  │  (when session ends)      │ Store turns in DB        │
+  │                           │ Set state = GRADING      │
+  │  POST /sessions/{id}/end  │                           │
+  │                           │                           │
+  │←─ OK (state=GRADING) ─────┤                           │
+  │                           │                           │
 ```
 
-**Connections:**
-- Connection pooling (10 max connections)
-- Idle timeout: 20s
-- Connection timeout: 10s
-- Automatic reconnect
+**Key Points:**
+- WebRTC connection is between browser and OpenAI (not Lambda)
+- Lambda only creates the session and stores transcripts
+- Realtime API handles transcription in real-time
+- Assistant speaks natively (no TTS synthesis)
+- Latency < 500ms typically
 
-### 5. Shared Layer (`src/shared/`)
-
-**Modules:**
-
-#### `env.ts`
-- Environment validation (Zod)
-- Centralized config
-- Type safety
-
-#### `types.ts`
-- Question bank (in-memory)
-- Rubric dimensions
-- Branded UUIDs
-
-#### `zod.ts`
-- API request/response schemas
-- Grade result schema
-- Type inference
-
-#### `logger.ts`
-- Structured logging
-- Log level filtering
-- Timestamp tagging
-
-### 6. Utility Layer (`src/util/`)
-
-- `s3.ts` - Presigned URLs, S3 downloads
-- `hash.ts` - SHA256 checksums
-- `time.ts` - Timestamp utilities
-
-## Data Flow
-
-### Upload & Grading Flow
+### Flow B: Grading (Post-Interview)
 
 ```
-1. Client: POST /attempts
-   ↓
-   Handler creates attempt (status="created")
-   ↓
-   Return { attemptId, uploadUrl, audioKey }
+Timeline: ~5–10 seconds after interview ends
 
-2. Client: PUT presigned_url (binary audio)
-   ↓
-   S3 stores audio file
-
-3. Client: POST /attempts/{id}/process
-   ↓
-   Update status → "transcribing"
-   ↓
-   Download audio from S3
-   ↓
-   Call OpenAI Whisper API
-   ↓
-   Store transcript in DB
-   ↓
-   Update status → "grading"
-   ↓
-   Embed transcript + retrieve KB chunks (pgvector)
-   ↓
-   Call OpenAI chat API with:
-      - System prompt (RAG constraints)
-      - User prompt (question + transcript + chunks)
-   ↓
-   Parse + validate JSON result (Zod)
-   ↓
-   Store results in DB
-   ↓
-   Update status → "done"
-   ↓
-   Return { status, transcript, result }
-
-4. Client: GET /attempts/{id}
-   ↓
-   Return attempt with all stored data
-   ↓
-   If status == "done", include full grading result
+Lambda                     KB / LLM
+  │                          │
+  ├─ Assemble transcript ────→│
+  │  (from stored turns)      │
+  │                           │
+  ├─ Retrieve relevant chunks │
+  │  (pgvector RAG)          │←─ Top-K chunks
+  │  embedding-based         │
+  │                           │
+  ├─ Call grading LLM ───────→│
+  │  + constraints            │
+  │  + KB chunks              │
+  │  + rubric                 │
+  │                           │
+  │←─ GradeResult (JSON) ─────┤
+  │  • scores                 │
+  │  • evidence               │
+  │  • citations              │
+  │  • feedback               │
+  │                           │
+  ├─ Store result in DB      │
+  │ Update state = DONE      │
+  │                           │
 ```
 
-### Knowledge Base Ingestion
+## Data Model
 
-```
-1. CLI: npm run ingest -- --file book.pdf --title "Title"
-   ↓
-   Read PDF file
-   ↓
-   Extract text (preserving page numbers)
-   ↓
-   Compute SHA256 checksum
-   ↓
-   Check if document exists (deduplication)
-   ↓
-   Create document record
-   ↓
-   Split text into chunks (500-900 tokens)
-   ↓
-   Batch embed chunks using OpenAI
-   ↓
-   Insert chunks into KB with embeddings
-   ↓
-   Log: "Ingested N chunks"
+### interview_sessions
+
+```sql
+CREATE TABLE interview_sessions (
+  id UUID PRIMARY KEY,
+  user_id TEXT,
+  question_id TEXT,
+  state TEXT,                  -- LIVE | GRADING | DONE | FAILED
+  question_text TEXT,
+  realtime_session_id TEXT,    -- OpenAI Realtime session ID
+  final_transcript TEXT,       -- Assembled transcript
+  error TEXT,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
 ```
 
-### Retrieval & Grading Logic
-
+**State Transitions:**
 ```
-1. Input: Transcript text
-   ↓
-   Embed using OpenAI (same model as KB)
-   ↓
-   Query pgvector: SELECT * ORDER BY embedding <=> query
-   ↓
-   Get top 30 raw chunks
-   ↓
-   Apply MMR filter:
-      - Greedily select chunks
-      - Avoid page range overlap > 80%
-      - Target 12 final chunks
-   ↓
-   Return [chunk_id, title, page_start/end, content, ...]
-
-2. Build grading context:
-   - Question text (from QUESTION_BANK)
-   - Transcript
-   - Retrieved chunks (formatted with citations)
-   - Rubric dimensions
-   ↓
-   Call LLM:
-      POST /v1/chat/completions
-      system: RAG enforcement prompt
-      user: assembled context
-   ↓
-   Parse response as JSON
-   ↓
-   Validate against GradeResultSchema
-   ↓
-   If invalid, retry with repair prompt
-   ↓
-   Extract citations and store
+  LIVE  →  GRADING  →  DONE
+       →  FAILED
 ```
 
-## Error Handling Strategy
+- **LIVE:** Realtime conversation ongoing
+- **GRADING:** Interview ended, grading in progress
+- **DONE:** Grading complete, results ready
+- **FAILED:** Error during interview or grading
 
-### Transient Errors (Retry)
+### interview_turns
 
-- OpenAI API rate limits (backoff)
-- Network timeouts (exponential backoff)
-- Temporary DB connection loss (reconnect)
-
-### Permanent Errors (Fail Fast)
-
-- Invalid audio format → Status: "failed"
-- No KB documents available → Grade with empty context, mark as "done"
-- Invalid JSON from LLM → Retry once, then fail
-- Database schema mismatch → Crash (needs migration)
-
-### Graceful Degradation
-
-- No KB chunks found → Grade based on transcript alone
-- Embedding API down → Continue with keyword search (stub)
-- Missing question → Use default rubric dimensions
-
-## Scaling Architecture
-
-### Current (MVP)
-
-```
-Single Lambda ← Synchronous processing
-  ↓
-Postgres connection pool (10)
-  ↓
-S3 bucket (single region)
+```sql
+CREATE TABLE interview_turns (
+  id UUID PRIMARY KEY,
+  session_id UUID REFERENCES interview_sessions,
+  role TEXT,                   -- user | assistant
+  type TEXT,                   -- question | clarify | answer | followup
+  transcript TEXT,             -- ALWAYS TEXT (no audio blobs)
+  created_at TIMESTAMP
+);
 ```
 
-### Phase 2: Async Processing
+**No Audio Storage:**
+- OpenAI Realtime API generates audio on-the-fly
+- We don't store raw WebM or audio files
+- Only transcribed text is persisted
 
-```
-Lambda (Fast)
-  ↓ (SQS message)
-Lambda Worker Pool (Slow)
-  ├─ Transcription
-  ├─ KB Retrieval
-  └─ Grading
-  ↓
-Postgres (with read replicas)
-```
+## Module Organization
 
-### Phase 3: Global Scale
+### `/src/realtime/`
 
-```
-API Gateway (Multi-region)
-  ├─ us-east-1 Lambda
-  ├─ eu-west-1 Lambda
-  └─ ap-southeast-1 Lambda
-      ↓
-Postgres (Neon multi-region)
-S3 (CloudFront CDN)
-ElastiCache (Redis)
-```
+**session.ts**
+- `createRealtimeSession(instructions)` → Creates ephemeral realtime session with OpenAI
+- Returns clientSecret + sessionId for WebRTC connection
+
+**instructions.ts**
+- `buildRealtimeInstructions(questionId)` → Generates system prompt for the interviewer
+- Ensures assistant acts as interviewer, not coaches
+- Includes safety guidelines
+
+**events.ts**
+- `processRealtimeTranscripts(payload)` → Stores transcript events to DB
+- `getSessionTranscripts(sessionId)` → Retrieves turns for grading
+- `assembleFinalTranscript(transcripts)` → Formats for grading
+
+### `/src/api/`
+
+**sessions.ts**
+- `createSession()` → POST /sessions
+  1. Create interview_session row
+  2. Call createRealtimeSession
+  3. Return clientSecret to client
+- `getSession()` → GET /sessions/{id}
+- `endSession()` → POST /sessions/{id}/end
+  1. Store transcript events
+  2. Set state = GRADING
+  3. (Backend will trigger grading separately or via webhook)
+- `getSessionResults()` → GET /sessions/{id}/results
+  1. Retrieve final_transcript
+  2. Call gradeAttempt
+  3. Return GradeResult + citations
+
+### `/src/kb/` & `/src/llm/` (UNCHANGED)
+
+- **retrieve.ts** → pgvector RAG (same as before)
+- **grade.ts** → LLM grading with JSON validation
+- **prompts.ts** → Grading system + user prompts (unchanged)
+
+### `/src/interview/`
+
+**stateMachine.ts** (DEPRECATED)
+- Old flow used explicit state transitions
+- New flow uses simple LIVE → GRADING → DONE
+- Kept for reference only
+
+**assembleAnswer.ts** (UPDATED)
+- Used by grading flow to build final transcript from turns
+
+**questionBank.ts**
+- Question definitions + rubrics (unchanged)
+
+### `/src/tts/` (DEPRECATED)
+
+- Kept for reference, not used
+- No TTS generation needed
+- OpenAI Realtime handles audio synthesis
+
+## Key Design Decisions
+
+### 1. No Audio Storage
+- **Before:** Stored raw WebM files in S3
+- **After:** Only store text transcripts
+- **Benefit:** 90% storage reduction, simpler compliance
+
+### 2. Realtime API Handles Transcription
+- **Before:** Client → Audio upload → Lambda → Whisper API → Transcript
+- **After:** Client → WebRTC → OpenAI → Realtime transcription
+- **Benefit:** < 500ms latency, natural conversation flow
+
+### 3. Ephemeral Sessions
+- OpenAI Realtime sessions auto-expire
+- No persistent session state at OpenAI
+- Lambda stores interview_session + turns for grading
+
+### 4. Synchronous Grading (Post-Interview)
+- Interview ends → Store transcripts → Trigger grading
+- Grading is synchronous (5-10 seconds)
+- Can later be made async if needed
+
+### 5. RAG Grading Unchanged
+- Transcript assembly → KB retrieval → LLM grading
+- Same prompts, same output schema
+- Identical validation + citation generation
+
+## Error Handling
+
+### Interview Errors (LIVE State)
+- WebRTC connection drops → Client reconnects
+- Realtime session expires → Create new one
+- Network error → Client retries
+
+### Grading Errors (GRADING State)
+- KB retrieval fails → Return error, set state = FAILED
+- LLM grading fails → Retry once with JSON repair, then FAILED
+- Data insertion fails → FAILED
+
+### Database Errors
+- Connection lost → Lambda retries
+- Constraint violation → FAILED
+
+## Scalability Considerations
+
+### Horizontal Scaling
+- Stateless Lambda functions (scale automatically)
+- Postgres managed by Neon (auto-scaling read replicas available)
+- OpenAI Realtime API (request-level rate limits, not session limits)
+
+### Bottlenecks
+- Postgres concurrent writes (interview_turns)
+  - Solution: Batch inserts, or async writes to SQS
+- OpenAI API rate limits
+  - Solution: Token bucket rate limiting, queuing
+- Vector search latency
+  - Solution: Cache embeddings, pre-compute for common questions
+
+### Cost Optimization
+- No S3 storage for audio (major cost reduction)
+- Realtime API cheaper per session than Whisper + TTS
+- pgvector queries on indexed vectors (fast)
 
 ## Security Considerations
 
-1. **Secrets Management**
-   - Store in AWS Secrets Manager
-   - Never commit `.env` to git
-   - Rotate OpenAI keys regularly
+### Realtime Session Security
+- Ephemeral client secrets expire automatically
+- No long-lived credentials stored client-side
+- Lambda validates session ownership (user_id check)
 
-2. **Database Security**
-   - Connections encrypted (SSL/TLS)
-   - IP whitelisting (Neon firewall)
-   - Connection pooling to limit footprint
+### Data Privacy
+- No audio blobs stored
+- Only transcripts (text) stored
+- GDPR: Easier to delete a user's data (just delete interview_session)
 
-3. **S3 Security**
-   - Block public access
-   - Presigned URLs (time-limited)
-   - Server-side encryption
-   - Bucket versioning
+### Prompt Injection
+- System prompt is fixed (assistant acts as interviewer)
+- User voice cannot inject prompts (audio stream, not text)
+- Grading prompts include safety guidelines
 
-4. **API Security**
-   - CORS restricted to frontend domain
-   - Rate limiting (API Gateway)
-   - Input validation (Zod)
-   - No secrets in logs
+## Monitoring & Observability
 
-5. **LLM Prompt Injection**
-   - System prompt enforces constraints
-   - User input is quoted/sanitized
-   - Output is JSON-validated
-   - Citations must reference actual chunks
+### Key Metrics
+1. **Session Creation Success Rate**
+   - Lambda invocations → Realtime session creates
+2. **Interview Duration**
+   - session.createdAt → session.updatedAt
+3. **Grading Latency**
+   - state = GRADING → state = DONE
+4. **Error Rate by Stage**
+   - KB retrieval fails
+   - LLM grading fails
+   - State transition errors
 
-## Performance Characteristics
+### Logging
+- All Lambda handlers log structured JSON
+- LOG_LEVEL controls verbosity
+- OpenAI API calls logged (timing, tokens, costs)
 
-### Latency
-
-| Operation | Time | Bottleneck |
-|-----------|------|-----------|
-| Create attempt | ~200ms | S3 presigned URL generation |
-| Transcribe (30s audio) | ~5-10s | OpenAI API |
-| Retrieve KB | ~500ms | pgvector search + MMR |
-| Grade (LLM call) | ~10-15s | OpenAI API latency |
-| Total process | ~20-30s | LLM calls |
-
-### Throughput
-
-- Single Lambda: ~10 concurrent grading operations
-- With Lambda auto-scaling: 100+ concurrent
-- Postgres: ~1000 QPS with pooling
-
-### Storage
-
-- ~1MB per KB chunk (with embedding)
-- ~1MB per attempt result (JSON)
-- 1000 chunks = ~1GB storage
-
-## Cost Estimation
-
-### Monthly (10K attempts)
-
-- **OpenAI API**: ~$150
-  - Transcription: 10K × ~$0.008 = $80
-  - Embeddings: 10K × 12 chunks × $0.00004 = $5
-  - Grading: 10K × ~$0.006 = $60
-
-- **AWS Lambda**: ~$20
-  - 30K function invocations × $0.0000002 = ~$6
-  - Compute: 10K × 25s @ 1GB = ~$14
-
-- **S3**: ~$5
-  - 10K audio files @ 1MB = 10GB storage = $0.23
-  - Uploads/downloads = ~$2
-
-- **Postgres (Neon)**: ~$50
-  - 5M rows (chunks + results)
-  - ~10GB storage
-  - Always-on compute
-
-- **Total**: ~$225/month
+### CloudWatch Dashboards
+- Session state distribution
+- Interview duration histogram
+- Grading score distribution
+- Error rate trends
 
 ## Future Enhancements
 
-### Short Term (1-2 months)
+### 1. Async Grading
+- Use SQS to queue grading jobs
+- Webhook callback when done
+- Support 100+ concurrent interviews
 
-- [ ] Question management UI (CRUD)
-- [ ] Custom rubric templates
-- [ ] Batch attempt processing
-- [ ] Email notifications
+### 2. Interview Recording
+- Store WebRTC stream to S3 (video + audio)
+- Client initiates recording, backend manages
+- Compliance: explicit user consent
 
-### Medium Term (3-6 months)
+### 3. Live Coaching Hints
+- During interview: Lambda emits hints to client
+- E.g., "Candidate is missing X concept"
+- Requires server-sent events or WebSocket
 
-- [ ] Multi-language support
-- [ ] Video + audio support
-- [ ] Real-time feedback (streaming)
-- [ ] Advanced analytics dashboard
+### 4. Custom Voices
+- Support multiple voice options for assistant
+- Store user preference in session
+- Cost: higher OpenAI Realtime bill
 
-### Long Term (6-12 months)
+### 5. Multi-Language Support
+- Realtime API supports many languages
+- Grading LLM can work in any language
+- Translation layer for KB chunks
 
-- [ ] Custom LLM fine-tuning
-- [ ] A/B testing framework
-- [ ] Federated learning for private data
-- [ ] Offline processing (edge Lambda)
+### 6. A/B Testing
+- Run same interview with different system prompts
+- Measure score distribution, interview duration
+- Optimize interviewer behavior
 
 ---
 
-For implementation details, refer to the inline code comments in each module.
+**Last Updated:** January 2025
+**Version:** 2.0 (Realtime)

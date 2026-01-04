@@ -1,4 +1,8 @@
 import { z } from "zod";
+import * as dotenv from "dotenv";
+
+// Load .env for local development (safe no-op in prod where vars are already set)
+dotenv.config({ override: false });
 
 const envSchema = z.object({
   DATABASE_URL: z.string().url("Invalid DATABASE_URL"),
@@ -6,6 +10,8 @@ const envSchema = z.object({
   OPENAI_TRANSCRIBE_MODEL: z.string().default("whisper-1"),
   OPENAI_EMBED_MODEL: z.string().default("text-embedding-3-small"),
   OPENAI_GRADE_MODEL: z.string().default("gpt-4o-mini"),
+  OPENAI_CHAT_MODEL: z.string().default("gpt-4o-mini"),
+  OPENAI_TTS_MODEL: z.string().default("gpt-4o-mini-tts"),
   AUDIO_BUCKET_NAME: z.string().min(1, "AUDIO_BUCKET_NAME is required"),
   AWS_REGION: z.string().default("us-east-1"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),

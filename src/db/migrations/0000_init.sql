@@ -1,0 +1,2 @@
+-- Baseline migration for drizzle; no-op
+-- Ensures migrator can start from 0000

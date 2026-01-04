@@ -63,7 +63,18 @@ class Logger {
 
   error(message: string, error?: unknown): void {
     if (this.shouldLog("error")) {
-      const errorData = error instanceof Error ? error.message : error;
+      let errorData = error;
+      if (error instanceof Error) {
+        const causeValue = (error as any).cause;
+        errorData = {
+          message: error.message,
+          stack: error.stack,
+          cause:
+            causeValue instanceof Error
+              ? { message: causeValue.message, stack: causeValue.stack }
+              : causeValue ?? undefined,
+        };
+      }
       console.error(this.formatLog("error", message, errorData));
     }
   }
