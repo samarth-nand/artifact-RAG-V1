@@ -26,4 +26,6 @@ databases:
   - name: artifact-grader-db
     databaseName: artifact_grader
     user: artifact_grader
-    plan: starter
+    # Render has deprecated legacy Postgres plans (including 'starter') for new DBs.
+    # Use a supported flexible plan.
+    plan: basic-256mb
