@@ -7,7 +7,6 @@ import {
   jsonb,
   uniqueIndex,
   index,
-  vector,
 } from "drizzle-orm/pg-core";
 
 // Knowledge Base Tables
@@ -33,8 +32,8 @@ export const kbChunks = pgTable(
     section: text("section"),
     content: text("content").notNull(),
     contentTokens: integer("content_tokens"),
-    // pgvector column; if not available, migrations should fall back to text
-    embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+    // Store embedding as JSON in a TEXT column (no pgvector dependency).
+    embedding: text("embedding").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => ({

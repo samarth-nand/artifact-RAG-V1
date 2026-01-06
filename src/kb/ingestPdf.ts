@@ -113,7 +113,7 @@ export async function ingestPdf(options: IngestOptions): Promise<void> {
       section: chunk.metadata.section,
       content: chunk.content,
       contentTokens: chunk.tokens,
-      embedding: embeddings[idx] as number[],
+      embedding: JSON.stringify(embeddings[idx] as number[]),
     }));
 
     await db.insert(kbChunks).values(chunkRecords);
