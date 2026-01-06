@@ -18,4 +18,4 @@ ENV PORT=3000
 EXPOSE 3000
 
 # Run migrations then start the server
-CMD ["sh", "-lc", "npm run db:migrate && node dist/server.js"]
+CMD ["sh", "-lc", "npm run db:migrate && node --experimental-specifier-resolution=node dist/server.js"]
