@@ -101,7 +101,7 @@ Notes:
 
 If the goal is **send one URL** to a non-technical tester, the simplest path is to deploy the full stack (app + Postgres) on Render.
 
-This repo includes a Render Blueprint file: `render.yaml`.
+This repo includes a Render Blueprint file: `render.yaml` (it tells Render how to build + start the app and provision Postgres).
 
 Steps:
 1. Push this repo to GitHub.

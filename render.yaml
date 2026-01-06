@@ -1,11 +1,14 @@
 services:
   - type: web
     name: artifact-grader
-    env: docker
-    dockerfilePath: ./Dockerfile
+    env: node
+    buildCommand: npm ci && npm run build
+    startCommand: npm run db:migrate && node dist/server.js
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
+      - key: NODE_VERSION
+        value: 20
       - key: NODE_ENV
         value: production
       - key: OPENAI_API_KEY
