@@ -21,6 +21,7 @@ services:
       # Update these via .env or your shell before running
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_GRADE_MODEL: ${OPENAI_GRADE_MODEL:-gpt-4o-mini}
+      AUDIO_BUCKET_NAME: ${AUDIO_BUCKET_NAME:-local-audio}
       # App talks to Postgres over the docker network
       DATABASE_URL: postgres://postgres:postgres@db:5432/artifact_grader
       PORT: 3000

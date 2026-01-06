@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: artifact-grader
+    env: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_GRADE_MODEL
+        value: gpt-4o-mini
+      - key: AUDIO_BUCKET_NAME
+        value: local-audio
+      - key: DATABASE_URL
+        fromDatabase:
+          name: artifact-grader-db
+          property: connectionString
+
+databases:
+  - name: artifact-grader-db
+    databaseName: artifact_grader
+    user: artifact_grader
+    plan: starter

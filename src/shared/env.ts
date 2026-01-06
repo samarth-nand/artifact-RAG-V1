@@ -12,7 +12,9 @@ const envSchema = z.object({
   OPENAI_GRADE_MODEL: z.string().default("gpt-4o-mini"),
   OPENAI_CHAT_MODEL: z.string().default("gpt-4o-mini"),
   OPENAI_TTS_MODEL: z.string().default("gpt-4o-mini-tts"),
-  AUDIO_BUCKET_NAME: z.string().min(1, "AUDIO_BUCKET_NAME is required"),
+  // Only required for the legacy audio-upload flow. For realtime interview + local/dev,
+  // defaulting this avoids blocking non-AWS deployments.
+  AUDIO_BUCKET_NAME: z.string().default("local-audio"),
   AWS_REGION: z.string().default("us-east-1"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   NODE_ENV: z.enum(["development", "production"]).default("development"),

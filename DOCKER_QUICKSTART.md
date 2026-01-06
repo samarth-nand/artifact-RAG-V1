@@ -97,6 +97,27 @@ Notes:
 
 ---
 
+## Easiest "one link" option (no Docker for the tester): Render
+
+If the goal is **send one URL** to a non-technical tester, the simplest path is to deploy the full stack (app + Postgres) on Render.
+
+This repo includes a Render Blueprint file: `render.yaml`.
+
+Steps:
+1. Push this repo to GitHub.
+2. In Render: **New → Blueprint**, select your repo.
+3. Set the `OPENAI_API_KEY` secret when prompted.
+4. Deploy.
+
+After deploy finishes, Render will give you a single HTTPS URL like:
+`https://artifact-grader.onrender.com`
+
+That’s the only link you need to send.
+
+Notes:
+- The service runs migrations automatically on startup.
+- If you change schema/migrations, just push to `main` and Render will redeploy.
+
 ## Common issues / fixes
 
 ### Docker says it cannot connect to the daemon
