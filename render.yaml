@@ -2,7 +2,9 @@ services:
   - type: web
     name: artifact-grader
     env: node
-    buildCommand: npm ci && npm run build
+    # Render may omit devDependencies when NODE_ENV=production, which breaks TypeScript builds
+    # (missing @types/*) and runtime migrations (drizzle-kit is a devDependency).
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run db:migrate && node dist/server.js
     healthCheckPath: /healthz
     autoDeploy: true
