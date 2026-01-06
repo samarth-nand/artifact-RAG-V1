@@ -1,0 +1,9 @@
+node_modules
+dist
+.sst
+.azure
+.git
+.DS_Store
+uploads
+tmp
+*.log

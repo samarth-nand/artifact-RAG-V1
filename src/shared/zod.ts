@@ -19,16 +19,18 @@ export const DimensionScoreSchema = z.preprocess(
   z.object({
     score: z.number().min(0).max(100),
     out_of: z.number().min(0).max(100).default(100),
-    rationale: z.string(),
-    evidence_from_transcript: z.array(z.string()),
-    citations: z.array(
-      z.object({
-        chunk_id: z.string().uuid(),
-        title: z.string(),
-        page_start: z.number(),
-        page_end: z.number(),
-      })
-    ),
+    rationale: z.string().default(""),
+    evidence_from_transcript: z.array(z.string()).default([]),
+    citations: z
+      .array(
+        z.object({
+          chunk_id: z.string().uuid(),
+          title: z.string(),
+          page_start: z.number(),
+          page_end: z.number(),
+        })
+      )
+      .default([]),
   })
 );
 

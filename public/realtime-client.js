@@ -14,6 +14,9 @@ class RealtimeClient {
     this.userTranscript = '';
     this.assistantTranscript = '';
 
+    this._assistantTextBuffer = '';
+    this._assistantAudioTranscriptBuffer = '';
+
     this._audioEl = null;
   }
 
@@ -62,6 +65,9 @@ class RealtimeClient {
             session: {
               instructions: this.config.instructions,
               modalities: ['text', 'audio'],
+              input_audio_transcription: {
+                model: 'gpt-4o-mini-transcribe',
+              },
             },
           });
         }
@@ -190,6 +196,17 @@ class RealtimeClient {
     return { user: this.userTranscript, assistant: this.assistantTranscript };
   }
 
+  _flushAssistantTranscript() {
+    const text = (this._assistantAudioTranscriptBuffer || this._assistantTextBuffer || '').trim();
+    if (!text) return;
+
+    if (this.config.onTranscript) this.config.onTranscript(text, 'assistant');
+    this.assistantTranscript = text;
+
+    this._assistantTextBuffer = '';
+    this._assistantAudioTranscriptBuffer = '';
+  }
+
   _sendEvent(obj) {
     if (!this.dataChannel || this.dataChannel.readyState !== 'open') return;
     this.dataChannel.send(JSON.stringify(obj));
@@ -202,13 +219,51 @@ class RealtimeClient {
 
       switch (event.type) {
         case 'response.text.delta':
-          if (event.delta) this.assistantTranscript += event.delta;
+          if (event.delta) this._assistantTextBuffer += event.delta;
           break;
-        case 'response.done':
-          if (this.assistantTranscript) {
-            if (this.config.onTranscript) this.config.onTranscript(this.assistantTranscript, 'assistant');
-            this.assistantTranscript = '';
+        case 'response.text.done':
+          this._flushAssistantTranscript();
+          break;
+
+        // Speech-to-speech: transcript of the model's audio output
+        case 'response.audio_transcript.delta':
+          if (event.delta) this._assistantAudioTranscriptBuffer += event.delta;
+          break;
+        case 'response.audio_transcript.done':
+          this._flushAssistantTranscript();
+          break;
+
+        // Speech input: transcript of the user's microphone audio
+        // Common event name in Realtime: conversation.item.input_audio_transcription.completed
+        case 'conversation.item.input_audio_transcription.completed': {
+          const transcript =
+            (event.transcript ||
+              event.text ||
+              (event.item && event.item.transcript) ||
+              (event.item && event.item.text) ||
+              '').toString();
+          const trimmed = transcript.trim();
+          if (trimmed) {
+            this.userTranscript = trimmed;
+            if (this.config.onTranscript) this.config.onTranscript(trimmed, 'user');
           }
+          break;
+        }
+
+        // Alternate event name variants
+        case 'input_audio_transcription.completed':
+        case 'conversation.input_audio_transcription.completed': {
+          const transcript = (event.transcript || event.text || '').toString();
+          const trimmed = transcript.trim();
+          if (trimmed) {
+            this.userTranscript = trimmed;
+            if (this.config.onTranscript) this.config.onTranscript(trimmed, 'user');
+          }
+          break;
+        }
+
+        case 'response.done':
+          this._flushAssistantTranscript();
           break;
         case 'error':
           if (this.config.onError) this.config.onError(new Error(JSON.stringify(event)));

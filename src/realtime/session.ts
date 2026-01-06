@@ -38,6 +38,11 @@ export async function createRealtimeSession(
       voice: "alloy",
       input_audio_format: "pcm16",
       output_audio_format: "pcm16",
+      // Enable transcription of the user's microphone input so we can show
+      // what the candidate said in the live transcript and in results.
+      input_audio_transcription: {
+        model: "gpt-4o-mini-transcribe",
+      },
       // Session will auto-expire; client handles reconnection if needed
     });
 

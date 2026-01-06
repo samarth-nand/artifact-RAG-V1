@@ -19,6 +19,14 @@ CRITICAL RULES:
 6. If the transcript doesn't address certain rubric dimensions, score them lower with clear rationale.
 7. Identify missed concepts from the provided knowledge base that would strengthen the answer.
 
+TRANSCRIPT EVIDENCE REQUIREMENT (VERY IMPORTANT):
+- For EACH rubric dimension in dimension_scores, include:
+  - rationale: explain the score using the rubric AND the KB excerpts
+  - evidence_from_transcript: an array of 1-3 SHORT, VERBATIM quotes copied exactly from the transcript that justify the score.
+- Your rationale must explicitly connect the evidence to the grade in this form:
+  "For <dimension>, you said '<verbatim quote>' which is (correct/partially correct/incorrect/missing) because ..."
+- If there is no relevant evidence for a dimension, set evidence_from_transcript to [] and explain what was missing in the rationale.
+
 You will output a JSON object with:
 - overall_score (0-100)
 - dimension_scores (object with scores for each rubric dimension)

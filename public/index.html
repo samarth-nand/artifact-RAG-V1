@@ -439,7 +439,11 @@
   </div>
 
   <script>
-    const API_BASE = 'http://localhost:3000';
+    // Supports both local dev (frontend on 8080, API on 3000) and
+    // Docker/prod (frontend + API served from same origin).
+    const API_BASE = (window.location.port && window.location.port !== '3000')
+      ? 'http://localhost:3000'
+      : window.location.origin;
     let currentSession = null;
     let realtimeClient = null;
     let transcriptEvents = [];
@@ -672,17 +676,43 @@
       document.getElementById('interviewCard').classList.add('hidden');
       document.getElementById('resultsCard').classList.remove('hidden');
 
+      const fallbackTranscript = (transcriptEvents || [])
+        .map((e) => `${e.type === 'user.transcript' ? 'Candidate' : 'Interviewer'}: ${e.text}`)
+        .join('\n\n');
+      const transcriptText = data && data.finalTranscript ? data.finalTranscript : fallbackTranscript;
+      const transcriptSectionHtml = `<div class="feedback-section">
+          <div class="feedback-title">Transcript</div>
+          <div class="transcript">${
+            transcriptText
+              ? escapeHtml(transcriptText).replace(/\n/g, '<br>')
+              : '<span style="color:#777;">Transcript not captured yet. If this stays empty, it usually means the realtime client is not receiving transcription events.</span>'
+          }</div>
+        </div>`;
+
       const result = data.result;
       if (!result) {
-        document.getElementById('resultContent').innerHTML = '<p>Results not yet available</p>';
+        document.getElementById('resultContent').innerHTML = `
+          <p>Results not yet available</p>
+          ${transcriptSectionHtml}
+        `;
         return;
       }
 
       const dimensionScoresHtml = Object.entries(result.dimension_scores || {})
         .map(([name, score]) => {
           const scoreObj = typeof score === 'number' 
-            ? { score, out_of: 100, rationale: '' }
+            ? { score, out_of: 100, rationale: '', evidence_from_transcript: [] }
             : score;
+
+          const evidence = (scoreObj.evidence_from_transcript || []).filter(Boolean);
+          const evidenceHtml = evidence.length
+            ? `<div style="margin-top: 6px;">
+                <div style="font-size: 0.8em; color: #444; font-weight: 600;">Evidence (verbatim quotes)</div>
+                <ul class="feedback-list" style="margin-top: 4px;">
+                  ${evidence.map((q) => `<li>“${escapeHtml(String(q))}”</li>`).join('')}
+                </ul>
+              </div>`
+            : '';
           return `
           <div class="dimension-score">
             <div class="dimension-name">${escapeHtml(name)}</div>
@@ -691,6 +721,7 @@
             </div>
             <div class="score-value">${scoreObj.score} / ${scoreObj.out_of || 100}</div>
             ${scoreObj.rationale ? `<div style="font-size: 0.85em; color: #666; margin-top: 4px;">${escapeHtml(scoreObj.rationale)}</div>` : ''}
+            ${evidenceHtml}
           </div>
         `;
         }).join('');
@@ -743,10 +774,7 @@
           <p>${escapeHtml(result.next_drill)}</p>
         </div>` : ''}
 
-        ${data.finalTranscript ? `<div class="feedback-section">
-          <div class="feedback-title">Transcript</div>
-          <div class="transcript">${escapeHtml(data.finalTranscript).replace(/\n/g, '<br>')}</div>
-        </div>` : ''}
+        ${transcriptSectionHtml}
       `;
     }
 
