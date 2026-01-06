@@ -8,7 +8,7 @@
     "dev": "npm run build && tsx dev-server.ts",
     "dev:full": "concurrently \"npm run dev\" \"npm run serve\"",
     "serve": "npx http-server public -p 8080 -c-1",
-    "start": "node dist/server.js",
+    "start": "tsx src/server.ts",
     "deploy": "sst deploy",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
