@@ -15,10 +15,22 @@ export async function createSession(request: typeof CreateSessionRequestSchema._
     const db = getDb();
 
     const sessionId = randomUUID();
-    const question = getQuestion(request.questionId);
+    
+    // If question_text is provided, use it directly (dynamic question)
+    // Otherwise, try to look it up from the question bank
+    let questionText = request.questionText;
+    if (!questionText) {
+      try {
+        const question = getQuestion(request.questionId);
+        questionText = question.questionText;
+      } catch (error) {
+        logger.warn(`Question ${request.questionId} not found in bank, using question_id as identifier`);
+        questionText = `[Question: ${request.questionId}]`;
+      }
+    }
     
     // Build system instructions for realtime interview
-    const systemInstructions = buildRealtimeInstructions(request.questionId);
+    const systemInstructions = buildRealtimeInstructions(request.questionId, questionText);
 
     // Create ephemeral realtime session with OpenAI
     const realtimeConfig = await createRealtimeSession(systemInstructions);
@@ -31,7 +43,7 @@ export async function createSession(request: typeof CreateSessionRequestSchema._
         userId: request.userId,
         questionId: request.questionId,
         state: "LIVE",
-        questionText: question.questionText,
+        questionText,
         realtimeSessionId: realtimeConfig.sessionId,
       })
       .returning();
@@ -47,7 +59,7 @@ export async function createSession(request: typeof CreateSessionRequestSchema._
       realtimeSessionId: realtimeConfig.sessionId,
       clientSecret: realtimeConfig.clientSecret,
       instructions: realtimeConfig.instructions,
-      questionText: question.questionText,
+      questionText,
     };
   } catch (error) {
     logger.error("Failed to create session", error);

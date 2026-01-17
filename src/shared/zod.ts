@@ -101,6 +101,7 @@ export const SessionStateEnum = z.enum([
 export const CreateSessionRequestSchema = z.object({
   userId: z.string().min(1),
   questionId: z.string().min(1),
+  questionText: z.string().min(1).optional(),
 });
 
 export const RealtimeClientSecretSchema = z.object({

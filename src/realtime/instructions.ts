@@ -1,5 +1,3 @@
-import { getQuestion } from "../interview/questionBank";
-
 /**
  * Builds system instructions for the realtime interview assistant.
  * 
@@ -12,8 +10,7 @@ import { getQuestion } from "../interview/questionBank";
  * - Never reveal rubrics
  * - Never coach the candidate on "ideal answers"
  */
-export function buildRealtimeInstructions(questionId: string): string {
-  const question = getQuestion(questionId);
+export function buildRealtimeInstructions(questionId: string, questionText: string): string {
 
   const clarificationGuide = `
 When the user asks for clarification, explain constraints or definitions ONLY. Do NOT:
@@ -34,7 +31,7 @@ After hearing the candidate's main answer:
   return `You are an interviewer conducting a PM interview. Your role is to evaluate the candidate through natural conversation.
 
 QUESTION:
-"${question.questionText}"
+"${questionText}"
 
 CONSTRAINTS:
 - Speak first. Greet the candidate briefly, ask them to think about the question, and give them space to answer.
