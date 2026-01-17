@@ -1,10 +1,18 @@
 import { RetrievedChunk } from "../kb/retrieve";
 import { getQuestion } from "../interview/questionBank";
 
+export interface RubricDimension {
+  name: string;
+  out_of: number;
+  description: string;
+}
+
 export interface GradingContext {
   questionId: string;
+  questionText: string;
   transcript: string;
   retrievedChunks: RetrievedChunk[];
+  rubricDimensions?: RubricDimension[];
 }
 
 export function buildSystemPrompt(): string {
@@ -41,8 +49,23 @@ CRITICAL: Respond with ONLY the JSON object, nothing else.`;
 }
 
 export function buildUserPrompt(context: GradingContext): string {
-  const question = getQuestion(context.questionId);
-  const rubricDimensions = question.rubricDimensions;
+  // Try to get rubric dimensions from context, or fallback to question bank
+  let rubricDimensions = context.rubricDimensions;
+  
+  if (!rubricDimensions) {
+    try {
+      const question = getQuestion(context.questionId);
+      rubricDimensions = question.rubricDimensions;
+    } catch (error) {
+      // Question not in bank - use generic rubric
+      rubricDimensions = [
+        { name: "Clarity", out_of: 25, description: "Clear and well-structured response" },
+        { name: "Depth", out_of: 25, description: "Thorough analysis with supporting details" },
+        { name: "Framework", out_of: 25, description: "Systematic approach to problem-solving" },
+        { name: "Insight", out_of: 25, description: "Unique perspectives and critical thinking" },
+      ];
+    }
+  }
 
   const retrievedContext = context.retrievedChunks
     .map(
@@ -57,7 +80,7 @@ ${chunk.content}
     .join("\n");
 
   return `Interview Question:
-"${question.questionText}"
+"${context.questionText}"
 
 Candidate's Transcript:
 ${context.transcript}

@@ -37,12 +37,15 @@ async function ensureIngestInitialized() {
 // ============================================
 
 export const postSessions: APIGatewayProxyHandlerV2 = async (event) => {
+  console.log("[API] POST /sessions initiated", { method: event.requestContext.http.method });
+  
   // Handle CORS preflight
   if (event.requestContext.http.method === "OPTIONS") {
     return await handleCors();
   }
 
   try {
+    console.log("[API] POST /sessions processing request");
     await ensureDbInitialized();
     await ensureIngestInitialized();
 
@@ -66,12 +69,15 @@ export const postSessions: APIGatewayProxyHandlerV2 = async (event) => {
 };
 
 export const getSessionHandler: APIGatewayProxyHandlerV2 = async (event) => {
+  console.log("[API] GET /sessions/:sessionId initiated", { sessionId: event.pathParameters?.sessionId });
+  
   // Handle CORS preflight
   if (event.requestContext.http.method === "OPTIONS") {
     return await handleCors();
   }
 
   try {
+    console.log("[API] GET /sessions/:sessionId processing request");
     await ensureDbInitialized();
 
     const sessionId = event.pathParameters?.sessionId;
@@ -98,12 +104,15 @@ export const getSessionHandler: APIGatewayProxyHandlerV2 = async (event) => {
 };
 
 export const postSessionEnd: APIGatewayProxyHandlerV2 = async (event) => {
+  console.log("[API] POST /sessions/:sessionId/end initiated", { sessionId: event.pathParameters?.sessionId });
+  
   // Handle CORS preflight
   if (event.requestContext.http.method === "OPTIONS") {
     return await handleCors();
   }
 
   try {
+    console.log("[API] POST /sessions/:sessionId/end processing request");
     await ensureDbInitialized();
 
     const sessionId = event.pathParameters?.sessionId;
@@ -131,12 +140,15 @@ export const postSessionEnd: APIGatewayProxyHandlerV2 = async (event) => {
 };
 
 export const getSessionResultsHandler: APIGatewayProxyHandlerV2 = async (event) => {
+  console.log("[API] GET /sessions/:sessionId/results initiated", { sessionId: event.pathParameters?.sessionId });
+  
   // Handle CORS preflight
   if (event.requestContext.http.method === "OPTIONS") {
     return await handleCors();
   }
 
   try {
+    console.log("[API] GET /sessions/:sessionId/results processing request");
     await ensureDbInitialized();
     await ensureIngestInitialized();
 
@@ -169,12 +181,15 @@ export const getSessionResultsHandler: APIGatewayProxyHandlerV2 = async (event) 
 // ============================================
 
 export const postAttempts: APIGatewayProxyHandlerV2 = async (event) => {
+  console.log("[API] POST /attempts initiated", { method: event.requestContext.http.method });
+  
   // Handle CORS preflight
   if (event.requestContext.http.method === "OPTIONS") {
     return await handleCors();
   }
 
   try {
+    console.log("[API] POST /attempts processing request");
     await ensureDbInitialized();
     await ensureIngestInitialized();
 
@@ -198,12 +213,15 @@ export const postAttempts: APIGatewayProxyHandlerV2 = async (event) => {
 };
 
 export const postProcessAttempt: APIGatewayProxyHandlerV2 = async (event) => {
+  console.log("[API] POST /attempts/:attemptId/process initiated", { attemptId: event.pathParameters?.attemptId });
+  
   // Handle CORS preflight
   if (event.requestContext.http.method === "OPTIONS") {
     return await handleCors();
   }
 
   try {
+    console.log("[API] POST /attempts/:attemptId/process processing request");
     await ensureDbInitialized();
     await ensureIngestInitialized();
 
@@ -229,12 +247,15 @@ export const postProcessAttempt: APIGatewayProxyHandlerV2 = async (event) => {
 };
 
 export const getAttemptHandler: APIGatewayProxyHandlerV2 = async (event) => {
+  console.log("[API] GET /attempts/:attemptId initiated", { attemptId: event.pathParameters?.attemptId });
+  
   // Handle CORS preflight
   if (event.requestContext.http.method === "OPTIONS") {
     return await handleCors();
   }
 
   try {
+    console.log("[API] GET /attempts/:attemptId processing request");
     await ensureDbInitialized();
     await ensureIngestInitialized();
 

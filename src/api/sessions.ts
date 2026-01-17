@@ -172,6 +172,7 @@ export async function getSessionResults(sessionId: string) {
     const retrievedChunks = await retrieveChunks(session.finalTranscript);
     const gradeResult = await gradeAttempt({
       questionId: session.questionId,
+      questionText: session.questionText,
       transcript: session.finalTranscript,
       retrievedChunks,
     });
