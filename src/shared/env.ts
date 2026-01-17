@@ -18,6 +18,10 @@ const envSchema = z.object({
   AWS_REGION: z.string().default("us-east-1"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   NODE_ENV: z.enum(["development", "production"]).default("development"),
+  // Comma-separated list of allowed origins for CORS (e.g., https://yourapp.vercel.app,http://localhost:3000)
+  CORS_ORIGINS: z.string().default("*"),
+  // Set to "false" to disable serving static frontend files (API-only mode)
+  SERVE_FRONTEND: z.string().default("true"),
 });
 
 export type Environment = z.infer<typeof envSchema>;

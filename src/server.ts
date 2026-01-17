@@ -3,6 +3,7 @@ import express from "express";
 import type { Request, Response } from "express-serve-static-core";
 import cors from "cors";
 import path from "path";
+import { getEnv } from "./shared/env";
 
 import {
   postAttempts,
@@ -23,8 +24,20 @@ import {
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+const env = getEnv();
 
-app.use(cors());
+// CORS configuration for Next.js frontend
+const corsOrigins = env.CORS_ORIGINS === "*" 
+  ? "*" 
+  : env.CORS_ORIGINS.split(",").map(o => o.trim());
+
+app.use(cors({
+  origin: corsOrigins,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.raw({ type: "audio/*", limit: "50mb" }));
 
@@ -158,16 +171,37 @@ app.get("/sessions/:sessionId/results", async (req: Request, res: Response) => {
   sendResult(res, result);
 });
 
-// Static frontend (same-origin)
-const publicDir = path.resolve(process.cwd(), "public");
-app.use(express.static(publicDir));
-app.get("/", (_req: Request, res: Response) => {
-  res.sendFile(path.join(publicDir, "index.html"));
+// Health check endpoint (always available)
+app.get("/healthz", (_req: Request, res: Response) => {
+  res.status(200).json({ ok: true, timestamp: new Date().toISOString() });
 });
 
-app.get("/healthz", (_req: Request, res: Response) => {
-  res.status(200).json({ ok: true });
-});
+// Static frontend (optional, for same-origin deployment)
+if (env.SERVE_FRONTEND === "true") {
+  const publicDir = path.resolve(process.cwd(), "public");
+  app.use(express.static(publicDir));
+  app.get("/", (_req: Request, res: Response) => {
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
+} else {
+  // API-only mode: return JSON on root
+  app.get("/", (_req: Request, res: Response) => {
+    res.status(200).json({ 
+      service: "artifact-grader-api", 
+      version: "1.0.0",
+      endpoints: [
+        "POST /attempts",
+        "POST /attempts/:id/process",
+        "GET /attempts/:id",
+        "POST /sessions",
+        "GET /sessions/:id",
+        "POST /sessions/:id/end",
+        "GET /sessions/:id/results",
+        "GET /healthz"
+      ]
+    });
+  });
+}
 
 app.listen(port, "0.0.0.0", () => {
   // eslint-disable-next-line no-console
