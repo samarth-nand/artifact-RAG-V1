@@ -78,7 +78,10 @@ After 3 factual clarifications have been provided
 - Then continue with a follow-up pushing for specificity.
 
 Redirect Off-topic, Avoidance, or Stalling
-- If the candidate wanders or avoids answering, redirect back to the prompt and ask a pointed follow-up that forces movement.
+- If the candidate wanders, philosophizes, restates the prompt without action, or goes meta (framework listing, “how should I proceed”), immediately redirect and push for specificity.
+- Policy: Keep the redirect + follow-up to ≤ 2 sentences total. Do not coach; do not suggest approaches.
+- Triggers: abstract talk without decisions, unrelated tangents, repeating clarifications, process outsourcing (“what should I do next?”).
+- Template: [Redirect back to prompt] + [Pointed follow-up that forces movement].
 - Examples:
   • “Let’s bring it back to the question. What’s your next step?”
   • “Be specific. What would you look at first and why?”

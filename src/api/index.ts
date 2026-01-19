@@ -9,6 +9,8 @@ import { logger } from "../shared/logger";
 import { corsHeaders, createErrorResponse, handleCors } from "./cors";
 import { createSession, getSession, endSession, getSessionResults as getSessionResultsService } from "./sessions";
 
+export { postClarityGrade } from "./clarity.grade";
+
 // Initialize DB and auto-ingestion once
 let dbInitialized = false;
 let ingestInitialized = false;

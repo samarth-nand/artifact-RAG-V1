@@ -13,6 +13,7 @@ import {
   getSessionHandler,
   postSessionEnd,
   getSessionResultsHandler,
+  postClarityGrade,
 } from "./api/index";
 
 import {
@@ -52,6 +53,7 @@ const postSessionsHandler = postSessions as unknown as LambdaHandler;
 const getSessionHandlerTyped = getSessionHandler as unknown as LambdaHandler;
 const postSessionEndHandler = postSessionEnd as unknown as LambdaHandler;
 const getSessionResultsHandlerTyped = getSessionResultsHandler as unknown as LambdaHandler;
+const postClarityGradeHandler = postClarityGrade as unknown as LambdaHandler;
 
 function normalizeHeaders(headers: Request["headers"]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -171,6 +173,13 @@ app.get("/sessions/:sessionId/results", async (req: Request, res: Response) => {
   sendResult(res, result);
 });
 
+// Clarifying questions grading
+app.post("/clarity/grade", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  const result = await postClarityGradeHandler(event);
+  sendResult(res, result);
+});
+
 // Health check endpoint (always available)
 app.get("/healthz", (_req: Request, res: Response) => {
   res.status(200).json({ ok: true, timestamp: new Date().toISOString() });
@@ -197,6 +206,7 @@ if (env.SERVE_FRONTEND === "true") {
         "GET /sessions/:id",
         "POST /sessions/:id/end",
         "GET /sessions/:id/results",
+        "POST /clarity/grade",
         "GET /healthz"
       ]
     });

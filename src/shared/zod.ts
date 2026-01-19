@@ -204,6 +204,41 @@ export const SessionResultsResponseSchema = z.object({
   summaryTtsUrl: z.string().url().optional(),
 });
 
+// Clarifying question grading schemas
+export const ClarityQuestionInputSchema = z.object({
+  id: z.string().optional(),
+  text: z.string().min(1),
+});
+
+export const ClarityPerQuestionScoreSchema = z.object({
+  question: z.string(),
+  decision_impact: z.number().min(0).max(3),
+  alignment: z.number().min(0).max(3),
+  specificity: z.number().min(0).max(3),
+  redundancy_penalty: z.number().optional().default(0),
+  notes: z.string().optional().default(""),
+  tags: z.array(z.string()).optional().default([]),
+});
+
+export const ClarityGradeRequestSchema = z.object({
+  scenarioId: z.string().default("clarify_001_slack_enterprise_collab"),
+  questions: z.array(ClarityQuestionInputSchema).min(1),
+});
+
+export const ClarityGradeResponseSchema = z.object({
+  scenarioId: z.string(),
+  rubricVersion: z.string(),
+  coverage_score: z.number(),
+  signal_score: z.number(),
+  redundancy_penalty: z.number(),
+  spam_penalty: z.number(),
+  overall_score: z.number(),
+  per_question: z.array(ClarityPerQuestionScoreSchema),
+  summary: z.string().optional(),
+});
+
+export type ClarityGradeResponse = z.infer<typeof ClarityGradeResponseSchema>;
+
 export type CreateAttemptRequest = z.infer<typeof CreateAttemptRequestSchema>;
 export type CreateAttemptResponse = z.infer<
   typeof CreateAttemptResponseSchema
