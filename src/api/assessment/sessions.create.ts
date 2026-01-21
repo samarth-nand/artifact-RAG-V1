@@ -80,7 +80,14 @@ export const createAssessmentSession: APIGatewayProxyHandlerV2 = async (event) =
       headers: corsHeaders,
     };
   } catch (error) {
-    logger.error("POST /assessment_sessions failed", { error });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : "";
+    
+    logger.error("POST /assessment_sessions failed", { 
+      error: errorMessage,
+      stack: errorStack,
+      type: error instanceof Error ? error.constructor.name : typeof error,
+    });
 
     if (error instanceof Error && error.name === "ZodError") {
       return {
@@ -89,7 +96,7 @@ export const createAssessmentSession: APIGatewayProxyHandlerV2 = async (event) =
           error: {
             code: "VALIDATION_ERROR",
             message: "Invalid request body",
-            details: error,
+            details: (error as any).issues,
           },
         }),
         headers: corsHeaders,
@@ -102,6 +109,7 @@ export const createAssessmentSession: APIGatewayProxyHandlerV2 = async (event) =
         error: {
           code: "INTERNAL_ERROR",
           message: "Failed to create assessment session",
+          details: errorMessage,
         },
       }),
       headers: corsHeaders,

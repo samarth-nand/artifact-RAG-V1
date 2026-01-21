@@ -1,0 +1,98 @@
+## Structure Sprint Assessment - Frontend API Guide
+
+### Endpoints
+
+#### 1. Create Assessment Session
+POST /assessment_sessions
+
+Headers:
+Content-Type: application/json
+X-User-Id: <userId>
+
+Request:
+{}
+
+Response:
+{
+  "session_id": "uuid",
+  "scenario_id": "struct_001_airbnb_bookings",
+  "prompt": "You are a PM at Airbnb. How would you increase bookings?",
+  "question_type": "strategy_growth",
+  "time_limit_seconds": 90,
+  "min_bullets": 6,
+  "max_bullets": 10,
+  "max_chars_per_bullet": 90,
+  "expires_at": "2026-01-22T..."
+}
+
+#### 2. Submit Bullets & Get Grades
+POST /assessment_sessions/:sessionId/submit
+
+Headers:
+Content-Type: application/json
+X-User-Id: <userId>
+
+Request:
+{
+  "bullets": [
+    "Goal and time horizon",
+    "User segments",
+    "Funnel diagnosis",
+    "Growth levers",
+    "Prioritization",
+    "Metrics"
+  ],
+  "client_elapsed_ms": 87654
+}
+
+Response:
+{
+  "overall_score": 82,
+  "subscores": {
+    "coverage": 90,
+    "sequencing": 70,
+    "non_overlap": 95,
+    "appropriateness": 75
+  },
+  "sections_hit": ["goal", "segment", "baseline", "levers", "metrics"],
+  "misses": ["risks"],
+  "feedback": {
+    "summary": "Score: 90/100 coverage, 70/100 sequencing. You missed: risks.",
+    "what_you_did_well": [
+      "Strong coverage of expected sections.",
+      "Your buckets are distinct and not repetitive."
+    ],
+    "what_to_fix": [
+      "Add missing sections: risks.",
+      "Improve sequencing - place framing before tactics, metrics after decisions."
+    ],
+    "better_structure": [
+      "Goal and horizon",
+      "Baseline and funnel diagnosis",
+      "Choose segment and market focus",
+      "Levers by funnel stage",
+      "Prioritize top bets with rationale",
+      "Experiment plan and metrics",
+      "Risks and rollout"
+    ],
+    "rewrite_suggestion": {
+      "original": "Ideas to improve conversion",
+      "rewrite": "Levers by funnel stage: acquisition, activation, conversion, retention"
+    }
+  },
+  "rubric_version": "struct_v1"
+}
+
+### Validation Rules
+- Min bullets: 6
+- Max bullets: 10
+- Max chars per bullet: 90
+- Session expires after 5 minutes
+- Can only submit once per session
+
+### Error Codes
+400 VALIDATION_ERROR - Invalid bullets (count/length)
+404 NOT_FOUND - Session not found
+409 ALREADY_SUBMITTED - Already submitted
+410 EXPIRED - Session expired
+500 INTERNAL_ERROR - Server error
