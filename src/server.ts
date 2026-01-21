@@ -4,6 +4,8 @@ import type { Request, Response } from "express-serve-static-core";
 import cors from "cors";
 import path from "path";
 import { getEnv } from "./shared/env";
+import { initializeDb } from "./db/index";
+import { logger } from "./shared/logger";
 
 import {
   postAttempts,
@@ -30,6 +32,12 @@ import {
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const env = getEnv();
+
+// Initialize database on startup
+initializeDb().catch((error) => {
+  logger.error("Failed to initialize database on startup", error);
+  // Continue anyway - some endpoints might still work
+});
 
 // CORS configuration for Next.js frontend
 const corsOrigins = env.CORS_ORIGINS === "*" 
