@@ -163,6 +163,40 @@ async function gradeSessionAsync(
 
     logger.info("Starting async grading", { sessionId });
 
+    // Validate transcript is not empty
+    const candidateTranscript = transcript
+      .split('\n\n')
+      .filter(line => line.startsWith('Candidate:'))
+      .map(line => line.replace('Candidate: ', '').trim())
+      .join(' ');
+    
+    if (candidateTranscript.length < 10) {
+      logger.warn("Empty or minimal transcript provided", { sessionId, length: candidateTranscript.length });
+      
+      const emptyResult = {
+        overallScore: 0,
+        dimensionScores: {
+          clarity: 0,
+          structure: 0,
+          depth: 0,
+          communication: 0,
+        },
+        feedback: "No response provided. Please provide a substantive answer to the interview question.",
+        citations: [],
+      };
+      
+      await db
+        .update(interviewSessions)
+        .set({
+          state: "DONE" as any,
+          gradingResult: emptyResult as any,
+          updatedAt: new Date(),
+        })
+        .where(eq(interviewSessions.id, sessionId as any));
+      
+      return;
+    }
+
     // Retrieve relevant chunks
     const retrievedChunks = await retrieveChunks(transcript);
 
