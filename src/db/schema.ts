@@ -87,10 +87,11 @@ export const interviewSessions = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     userId: text("user_id").notNull(),
     questionId: text("question_id").notNull(),
-    state: text("state").notNull(), // LIVE | GRADING | DONE | FAILED
+    state: text("state").notNull(), // LIVE | ENDED | GRADING | DONE | FAILED
     questionText: text("question_text").notNull(),
     realtimeSessionId: text("realtime_session_id"), // OpenAI Realtime session ID
     finalTranscript: text("final_transcript"),
+    gradingResult: jsonb("grading_result"), // Cached grading result
     error: text("error"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

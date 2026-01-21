@@ -131,11 +131,11 @@ export async function endSession(
       .map((t) => `${t.role === "user" ? "Candidate" : "Interviewer"}: ${t.transcript}`)
       .join("\n\n");
 
-    // Update session state to GRADING
+    // Update session state to ENDED (ready for grading)
     await db
       .update(interviewSessions)
       .set({
-        state: "GRADING",
+        state: "ENDED",
         finalTranscript,
         updatedAt: new Date(),
       })
@@ -143,7 +143,7 @@ export async function endSession(
 
     logger.info("Ended interview session", { sessionId, turnCount: turns.length });
 
-    return { sessionId, state: "GRADING" };
+    return { sessionId, state: "ENDED" };
   } catch (error) {
     logger.error("Failed to end session", error);
     throw error;

@@ -20,6 +20,7 @@ import {
   postInterviewSessionConnect,
   postAssessmentSessions,
   postAssessmentSessionSubmit,
+  waitForSessionResults,
 } from "./api/index";
 
 import {
@@ -70,6 +71,7 @@ const postInterviewSessionsHandler = postInterviewSessions as unknown as LambdaH
 const postInterviewSessionConnectHandler = postInterviewSessionConnect as unknown as LambdaHandler;
 const postAssessmentSessionsHandler = postAssessmentSessions as unknown as LambdaHandler;
 const postAssessmentSessionSubmitHandler = postAssessmentSessionSubmit as unknown as LambdaHandler;
+const waitForSessionResultsHandler = waitForSessionResults as unknown as LambdaHandler;
 
 function normalizeHeaders(headers: Request["headers"]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -189,6 +191,13 @@ app.get("/sessions/:sessionId/results", async (req: Request, res: Response) => {
   sendResult(res, result);
 });
 
+app.get("/sessions/:sessionId/results/wait", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { sessionId: req.params.sessionId };
+  const result = await waitForSessionResultsHandler(event);
+  sendResult(res, result);
+});
+
 // Clarifying questions grading
 app.post("/clarity/grade", async (req: Request, res: Response) => {
   const event = expressToLambdaEvent(req);
@@ -243,6 +252,7 @@ if (env.SERVE_FRONTEND === "true") {
       service: "artifact-grader-api", 
       version: "1.0.0",
       endpoints: [
+        "GET /sessions/:id/results/wait (long polling)",
         "POST /attempts",
         "POST /attempts/:id/process",
         "GET /attempts/:id",
