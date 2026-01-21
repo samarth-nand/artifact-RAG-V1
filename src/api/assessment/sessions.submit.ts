@@ -161,9 +161,10 @@ export const submitAssessment: APIGatewayProxyHandlerV2 = async (event) => {
     await db.execute(
       sql`
         INSERT INTO structure_evaluations 
-        (attempt_id, overall_score, subscores, sections_hit, misses, feedback, llm_response, rubric_version)
+        (attempt_id, session_id, overall_score, subscores, sections_hit, misses, feedback, llm_response, rubric_version)
         VALUES (
           ${attemptId},
+          ${sessionId},
           ${overall_score},
           ${JSON.stringify(subscores)},
           ${JSON.stringify(llmResponse.sections_hit)},
