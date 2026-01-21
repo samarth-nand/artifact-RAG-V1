@@ -41,6 +41,35 @@ export async function computeDeterministicScores(
     llmResponse.misses
   );
 
+  // CRITICAL: Detect gibberish/nonsense submissions
+  const bulletsWithoutSections = llmResponse.bullet_level.filter(
+    (b) => b.section_keys.length === 0
+  ).length;
+  const isGibberish = 
+    llmResponse.sections_hit.length === 0 || // No sections identified
+    bulletsWithoutSections >= bullets.length * 0.8 || // 80%+ bullets have no sections
+    coverageScore < 15; // Less than 15% coverage
+
+  if (isGibberish) {
+    logger.warn("Gibberish submission detected", {
+      sections_hit: llmResponse.sections_hit.length,
+      bullets_without_sections: bulletsWithoutSections,
+      coverage: coverageScore,
+    });
+    
+    // Return minimum score for gibberish
+    return {
+      subscores: {
+        coverage: Math.round(coverageScore),
+        sequencing: 0,
+        non_overlap: 0,
+        appropriateness: 0,
+      },
+      overall_score: Math.round(coverageScore * 0.35), // Only coverage score matters
+      feedback: generateGibberishFeedback(scenario, llmResponse),
+    };
+  }
+
   // Apply penalties
   let overallScore =
     coverageScore * 0.35 +
@@ -216,6 +245,24 @@ function computeAppropriatenessScore(
   }
 
   return Math.max(0, Math.min(100, score));
+}
+
+function generateGibberishFeedback(
+  scenario: StructureScenario,
+  llmResponse: LLMGraderResponse
+): Feedback {
+  return {
+    summary: "Your submission does not contain recognizable structural elements for answering this question.",
+    what_you_did_well: [
+      "You submitted within the time limit.",
+    ],
+    what_to_fix: [
+      "Write section headers, not random text or solutions.",
+      "Focus on creating a clear outline structure for your answer.",
+    ],
+    better_structure: llmResponse.improved_structure,
+    rewrite_suggestion: llmResponse.rewrite_suggestion,
+  };
 }
 
 function generateFeedback(
