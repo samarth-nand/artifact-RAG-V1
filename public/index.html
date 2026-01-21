@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PM Interview - Real-Time Speech</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      color: white;
+      margin-bottom: 40px;
+    }
+
+    h1 {
+      font-size: 2.5em;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      font-size: 1.1em;
+      opacity: 0.9;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      color: #333;
+      margin-bottom: 20px;
+      font-size: 1.5em;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 10px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: 500;
+    }
+
+    select, input[type="text"], input[type="email"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 0.95em;
+      font-family: inherit;
+      transition: border-color 0.3s;
+    }
+
+    select:focus, input[type="text"]:focus, input[type="email"]:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.95em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .btn-danger {
+      background: #e74c3c;
+      color: white;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: #c0392b;
+      transform: translateY(-2px);
+    }
+
+    .btn-danger:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .status {
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 20px;
+      font-weight: 500;
+    }
+
+    .status.info {
+      background: #e3f2fd;
+      color: #1976d2;
+      border-left: 4px solid #1976d2;
+    }
+
+    .status.success {
+      background: #e8f5e9;
+      color: #388e3c;
+      border-left: 4px solid #388e3c;
+    }
+
+    .status.error {
+      background: #ffebee;
+      color: #d32f2f;
+      border-left: 4px solid #d32f2f;
+    }
+
+    .status.warning {
+      background: #fff3e0;
+      color: #f57c00;
+      border-left: 4px solid #f57c00;
+    }
+
+    .audio-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 20px 0;
+      padding: 15px;
+      background: #f5f5f5;
+      border-radius: 6px;
+    }
+
+    .mic-icon {
+      width: 24px;
+      height: 24px;
+      background: #667eea;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+    }
+
+    .mic-icon.active {
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .transcript {
+      background: #f9f9f9;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 15px;
+      margin-top: 15px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-size: 0.9em;
+      line-height: 1.6;
+    }
+
+    .transcript-entry {
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .transcript-entry:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .speaker-label {
+      font-weight: 600;
+      color: #667eea;
+      margin-bottom: 4px;
+    }
+
+    .speaker-label.user {
+      color: #667eea;
+    }
+
+    .speaker-label.assistant {
+      color: #764ba2;
+    }
+
+    .score-display {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .score-circle {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 2.5em;
+      font-weight: bold;
+    }
+
+    .score-info h3 {
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .dimension-scores {
+      display: grid;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .dimension-score {
+      background: white;
+      padding: 15px;
+      border-radius: 6px;
+      border-left: 4px solid #667eea;
+    }
+
+    .dimension-name {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .score-bar {
+      width: 100%;
+      height: 6px;
+      background: #e0e0e0;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .score-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      transition: width 0.3s ease;
+    }
+
+    .score-value {
+      font-size: 0.85em;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    .feedback-section {
+      margin-top: 15px;
+    }
+
+    .feedback-title {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .feedback-list {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .feedback-list li {
+      padding: 8px 0;
+      color: #555;
+      position: relative;
+      padding-left: 24px;
+    }
+
+    .feedback-list li:before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: #667eea;
+      font-weight: bold;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .timer {
+      font-size: 1.2em;
+      font-weight: 600;
+      color: #667eea;
+      margin-top: 10px;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎤 PM Interview</h1>
+      <p class="subtitle">Real-time speech-to-speech conversation</p>
+    </header>
+
+    <!-- Setup Card -->
+    <div class="card" id="setupCard">
+      <h2>Start Interview</h2>
+      <div class="form-group">
+        <label for="userIdInput">User ID</label>
+        <input type="email" id="userIdInput" placeholder="user@example.com" value="test-user-001">
+      </div>
+      <div class="form-group">
+        <label for="questionIdSelect">Select Question</label>
+        <select id="questionIdSelect">
+          <option value="">-- Choose a question --</option>
+          <option value="pm_retention">User Retention: How would you improve retention for our mobile app?</option>
+          <option value="pm_growth">Growth: Grow weekly active users by 20% in 6 months</option>
+          <option value="pm_discovery">Discovery: Validate a new feature for power users</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <p style="color: #666; font-size: 0.9em;">
+          <strong>Note:</strong> WebRTC connection to OpenAI Realtime API will be established after you start. You'll need an OpenAI API key configured in the backend.
+        </p>
+      </div>
+      <div class="button-group">
+        <button class="btn-primary" id="startBtn">Start Interview</button>
+      </div>
+      <div id="setupStatus" class="hidden"></div>
+    </div>
+
+    <!-- Interview Card -->
+    <div class="card hidden" id="interviewCard">
+      <h2>Interview in Progress</h2>
+      
+      <div class="audio-indicator">
+        <div class="mic-icon active" id="micIcon">🎤</div>
+        <div>
+          <div style="font-weight: 600;">Microphone Active</div>
+          <div style="font-size: 0.9em; color: #666;">Speak clearly and naturally</div>
+        </div>
+      </div>
+
+      <div class="timer">
+        Duration: <span id="timer">00:00</span>
+      </div>
+
+      <p style="color: #666; font-size: 0.9em; margin: 20px 0;">
+        <strong>Real-time WebRTC Connection Active</strong><br>
+        Speak naturally. Your speech will be transcribed and the interviewer will respond in real-time.
+        The session will auto-detect when you're done speaking.
+      </p>
+
+      <div class="transcript" id="transcript">
+        <div style="color: #999; text-align: center; padding: 20px;">Waiting for interview to begin...</div>
+      </div>
+
+      <div class="button-group">
+        <button class="btn-danger" id="endBtn" style="flex: 0 0 auto;">End Interview</button>
+      </div>
+
+      <div id="interviewStatus" class="hidden"></div>
+    </div>
+
+    <!-- Results Card -->
+    <div class="card hidden" id="resultsCard">
+      <h2>Interview Results</h2>
+      
+      <div id="resultContent"></div>
+
+      <div class="button-group">
+        <button class="btn-primary" onclick="location.reload()">Start New Interview</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Supports both local dev (frontend on 8080, API on 3000) and
+    // Docker/prod (frontend + API served from same origin).
+    const API_BASE = (window.location.port && window.location.port !== '3000')
+      ? 'http://localhost:3000'
+      : window.location.origin;
+    let currentSession = null;
+    let realtimeClient = null;
+    let transcriptEvents = [];
+    let timerInterval = null;
+    let startTime = null;
+
+    // Audio output (PCM16 from realtime)
+    let audioContext = null;
+    let nextAudioTime = 0;
+    const REALTIME_OUTPUT_SAMPLE_RATE = 24000;
+
+    async function ensureAudioOutput() {
+      if (!audioContext) {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioContextCtor({ sampleRate: REALTIME_OUTPUT_SAMPLE_RATE });
+        nextAudioTime = audioContext.currentTime;
+      }
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+    }
+
+    function playPcm16Chunk(arrayBuffer) {
+      if (!audioContext) return;
+      if (!(arrayBuffer instanceof ArrayBuffer)) return;
+
+      const byteLength = arrayBuffer.byteLength;
+      if (byteLength < 2) return;
+
+      const alignedLength = byteLength - (byteLength % 2);
+      const view = new DataView(arrayBuffer, 0, alignedLength);
+      const sampleCount = alignedLength / 2;
+      const float32 = new Float32Array(sampleCount);
+      for (let i = 0; i < sampleCount; i++) {
+        const s = view.getInt16(i * 2, true);
+        float32[i] = s / 32768;
+      }
+
+      const buffer = audioContext.createBuffer(1, float32.length, REALTIME_OUTPUT_SAMPLE_RATE);
+      buffer.getChannelData(0).set(float32);
+
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContext.destination);
+
+      const now = audioContext.currentTime;
+      if (nextAudioTime < now) nextAudioTime = now + 0.02;
+      source.start(nextAudioTime);
+      nextAudioTime += buffer.duration;
+    }
+
+    async function handleStart() {
+      const userId = document.getElementById('userIdInput').value.trim();
+      const questionId = document.getElementById('questionIdSelect').value;
+
+      if (!userId || !questionId) {
+        showStatus('setupStatus', 'Please fill in all fields', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('startBtn');
+      btn.disabled = true;
+      showStatus('setupStatus', 'Starting interview session...', 'info');
+
+      try {
+        // Ensure browser allows audio playback (must happen in a user gesture)
+        await ensureAudioOutput();
+
+        // Create session on backend
+        const sessionResponse = await fetch(`${API_BASE}/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, questionId })
+        });
+
+        if (!sessionResponse.ok) {
+          throw new Error(`Failed to create session: ${sessionResponse.statusText}`);
+        }
+
+        currentSession = await sessionResponse.json();
+        console.log('Session created:', currentSession);
+
+        // Switch UI to interview mode
+        document.getElementById('setupCard').classList.add('hidden');
+        document.getElementById('interviewCard').classList.remove('hidden');
+
+        // Initialize realtime client
+        await initializeRealtime();
+
+        // Start timer
+        startTime = Date.now();
+        timerInterval = setInterval(updateTimer, 1000);
+
+        // Show question
+        addTranscriptEntry('Interviewer', currentSession.questionText);
+
+      } catch (error) {
+        console.error('Error:', error);
+        showStatus('setupStatus', `Error: ${error.message}`, 'error');
+        btn.disabled = false;
+      }
+    }
+
+    async function initializeRealtime() {
+      try {
+        // Create realtime client with WebRTC connection
+        realtimeClient = new RealtimeClient({
+          sessionToken: currentSession.clientSecret.value,
+          sessionId: currentSession.sessionId,
+          instructions: currentSession.instructions,
+          onTranscript: (text, role) => {
+            addTranscriptEntry(role === 'user' ? 'You' : 'Interviewer', text);
+          },
+          onAudio: (audioBuffer) => {
+            // audioBuffer is PCM16 bytes (ArrayBuffer)
+            playPcm16Chunk(audioBuffer);
+          },
+          onError: (error) => {
+            showStatus('interviewStatus', `Realtime error: ${error.message}`, 'error');
+          },
+          onConnected: () => {
+            showStatus('interviewStatus', 'WebRTC connected - ready to speak', 'success');
+          },
+          onDisconnected: () => {
+            showStatus('interviewStatus', 'Disconnected from realtime API', 'warning');
+          },
+        });
+
+        // Connect to OpenAI Realtime API
+        await realtimeClient.connect();
+
+      } catch (error) {
+        console.error('Failed to initialize realtime:', error);
+        const errMsg = error && error.message ? error.message : String(error);
+        showStatus('interviewStatus', `Realtime initialization failed: ${errMsg}`, 'error');
+        throw error;
+      }
+    }
+
+    function addTranscriptEntry(speaker, text) {
+      const transcriptDiv = document.getElementById('transcript');
+      
+      // Clear placeholder if needed
+      if (transcriptDiv.textContent.includes('Waiting for interview')) {
+        transcriptDiv.innerHTML = '';
+      }
+
+      const entry = document.createElement('div');
+      entry.className = 'transcript-entry';
+      entry.innerHTML = `
+        <div class="speaker-label ${speaker === 'Interviewer' ? 'assistant' : 'user'}">${speaker}:</div>
+        <div>${escapeHtml(text)}</div>
+      `;
+      transcriptDiv.appendChild(entry);
+      transcriptDiv.scrollTop = transcriptDiv.scrollHeight;
+
+      // Store event
+      const eventType = speaker === 'Interviewer' ? 'assistant.transcript' : 'user.transcript';
+      transcriptEvents.push({
+        type: eventType,
+        text: text,
+        timestamp: Date.now()
+      });
+    }
+
+    function updateTimer() {
+      if (startTime) {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        document.getElementById('timer').textContent = 
+          `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      }
+    }
+
+    async function handleEnd() {
+      const btn = document.getElementById('endBtn');
+      btn.disabled = true;
+      clearInterval(timerInterval);
+
+      showStatus('interviewStatus', 'Ending interview and retrieving results...', 'info');
+
+      try {
+        // Disconnect from realtime API
+        if (realtimeClient) {
+          await realtimeClient.disconnect();
+        }
+
+        // End session on backend
+        await fetch(`${API_BASE}/sessions/${currentSession.sessionId}/end`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transcriptEvents })
+        });
+
+        // Poll for results
+        let results = null;
+        let attempts = 0;
+        while (!results && attempts < 30) {
+          await new Promise(r => setTimeout(r, 1000));
+          const response = await fetch(`${API_BASE}/sessions/${currentSession.sessionId}/results`);
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.state === 'DONE' || data.result) {
+              results = data;
+              break;
+            }
+          }
+          attempts++;
+        }
+
+        if (results && results.result) {
+          displayResults(results);
+        } else {
+          showStatus('interviewStatus', 'Grading complete - results will appear shortly', 'info');
+          // Still show results card even if grading not complete
+          document.getElementById('interviewCard').classList.add('hidden');
+          document.getElementById('resultsCard').classList.remove('hidden');
+        }
+
+      } catch (error) {
+        console.error('Error ending interview:', error);
+        showStatus('interviewStatus', `Error: ${error.message}`, 'error');
+        btn.disabled = false;
+      }
+    }
+
+    function displayResults(data) {
+      document.getElementById('interviewCard').classList.add('hidden');
+      document.getElementById('resultsCard').classList.remove('hidden');
+
+      const fallbackTranscript = (transcriptEvents || [])
+        .map((e) => `${e.type === 'user.transcript' ? 'Candidate' : 'Interviewer'}: ${e.text}`)
+        .join('\n\n');
+      const transcriptText = data && data.finalTranscript ? data.finalTranscript : fallbackTranscript;
+      const transcriptSectionHtml = `<div class="feedback-section">
+          <div class="feedback-title">Transcript</div>
+          <div class="transcript">${
+            transcriptText
+              ? escapeHtml(transcriptText).replace(/\n/g, '<br>')
+              : '<span style="color:#777;">Transcript not captured yet. If this stays empty, it usually means the realtime client is not receiving transcription events.</span>'
+          }</div>
+        </div>`;
+
+      const result = data.result;
+      if (!result) {
+        document.getElementById('resultContent').innerHTML = `
+          <p>Results not yet available</p>
+          ${transcriptSectionHtml}
+        `;
+        return;
+      }
+
+      const dimensionScoresHtml = Object.entries(result.dimension_scores || {})
+        .map(([name, score]) => {
+          const scoreObj = typeof score === 'number' 
+            ? { score, out_of: 100, rationale: '', evidence_from_transcript: [] }
+            : score;
+
+          const evidence = (scoreObj.evidence_from_transcript || []).filter(Boolean);
+          const evidenceHtml = evidence.length
+            ? `<div style="margin-top: 6px;">
+                <div style="font-size: 0.8em; color: #444; font-weight: 600;">Evidence (verbatim quotes)</div>
+                <ul class="feedback-list" style="margin-top: 4px;">
+                  ${evidence.map((q) => `<li>“${escapeHtml(String(q))}”</li>`).join('')}
+                </ul>
+              </div>`
+            : '';
+          return `
+          <div class="dimension-score">
+            <div class="dimension-name">${escapeHtml(name)}</div>
+            <div class="score-bar">
+              <div class="score-fill" style="width: ${(scoreObj.score / (scoreObj.out_of || 100)) * 100}%"></div>
+            </div>
+            <div class="score-value">${scoreObj.score} / ${scoreObj.out_of || 100}</div>
+            ${scoreObj.rationale ? `<div style="font-size: 0.85em; color: #666; margin-top: 4px;">${escapeHtml(scoreObj.rationale)}</div>` : ''}
+            ${evidenceHtml}
+          </div>
+        `;
+        }).join('');
+
+      const strengthsHtml = (result.strengths || [])
+        .map(s => `<li>${escapeHtml(s)}</li>`)
+        .join('');
+
+      const improvementsHtml = (result.improvements || [])
+        .map(s => `<li>${escapeHtml(s)}</li>`)
+        .join('');
+
+      const missedConceptsHtml = (result.missed_concepts || [])
+        .map(s => `<li>${escapeHtml(s)}</li>`)
+        .join('');
+
+      document.getElementById('resultContent').innerHTML = `
+        <div class="score-display">
+          <div class="score-circle">${result.overall_score}</div>
+          <div class="score-info">
+            <h3>Overall Score</h3>
+            <p>Out of 100</p>
+          </div>
+        </div>
+
+        <div class="dimension-scores">${dimensionScoresHtml}</div>
+
+        ${strengthsHtml ? `<div class="feedback-section">
+          <div class="feedback-title">✓ Strengths</div>
+          <ul class="feedback-list">${strengthsHtml}</ul>
+        </div>` : ''}
+
+        ${improvementsHtml ? `<div class="feedback-section">
+          <div class="feedback-title">→ Areas for Improvement</div>
+          <ul class="feedback-list">${improvementsHtml}</ul>
+        </div>` : ''}
+
+        ${missedConceptsHtml ? `<div class="feedback-section">
+          <div class="feedback-title">💡 Missed Concepts</div>
+          <ul class="feedback-list">${missedConceptsHtml}</ul>
+        </div>` : ''}
+
+        ${result.rewrite_suggestion ? `<div class="feedback-section">
+          <div class="feedback-title">Suggestion for Improvement</div>
+          <p>${escapeHtml(result.rewrite_suggestion)}</p>
+        </div>` : ''}
+
+        ${result.next_drill ? `<div class="feedback-section">
+          <div class="feedback-title">Next Drill Focus</div>
+          <p>${escapeHtml(result.next_drill)}</p>
+        </div>` : ''}
+
+        ${transcriptSectionHtml}
+      `;
+    }
+
+    function showStatus(elementId, message, type) {
+      const element = document.getElementById(elementId);
+      element.textContent = message;
+      element.className = `status ${type}`;
+      element.classList.remove('hidden');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // For testing: Allow manual transcript entry via console (for development)
+    window.addUserEntry = function(text) {
+      if (realtimeClient) {
+        realtimeClient.sendMessage(text).catch(console.error);
+      } else {
+        console.log('Realtime client not initialized');
+      }
+    };
+
+    // Wire up buttons after DOM is ready to avoid global lookups
+    document.addEventListener('DOMContentLoaded', () => {
+      const startBtnEl = document.getElementById('startBtn');
+      const endBtnEl = document.getElementById('endBtn');
+      if (startBtnEl) startBtnEl.addEventListener('click', handleStart);
+      if (endBtnEl) endBtnEl.addEventListener('click', handleEnd);
+    });
+
+    // Expose handlers for inline buttons
+    window.handleStart = handleStart;
+    window.handleEnd = handleEnd;
+
+    console.log('🎤 PM Interview - Real-time Speech-to-Speech');
+    console.log('WebRTC connection to OpenAI Realtime API enabled');
+    console.log('API Key required in backend environment variables');
+  </script>
+  <script src="realtime-client.js"></script>
+</body>
+</html>

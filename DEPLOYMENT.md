@@ -1,432 +1,442 @@
-# Deployment Guide
+# Artifact Grader - Deployment & Integration Guide
 
-This guide covers deploying artifact-grader to AWS.
+## Table of Contents
+1. [Backend Deployment](#backend-deployment)
+2. [Frontend Integration](#frontend-integration)
+3. [Environment Configuration](#environment-configuration)
+4. [API Endpoints Reference](#api-endpoints-reference)
 
-## Prerequisites
+---
 
-- AWS account with appropriate permissions
-- AWS CLI configured with credentials
+## Backend Deployment
+
+### Option 1: Local Development
+
+**Prerequisites:**
 - Node.js 20+
-- Neon Postgres instance (or other managed Postgres)
+- PostgreSQL 15+
+- OpenAI API key
 
-## Pre-Deployment Checklist
-
-- [ ] `.env` is configured with production credentials
-- [ ] Database migrations have been run (`npm run db:push`)
-- [ ] Knowledge base PDFs have been ingested
-- [ ] API has been tested locally (`npm run dev`)
-- [ ] No hardcoded secrets in code
-
-## Step 1: Prepare AWS Credentials
-
-Option A: Using AWS CLI
-```bash
-aws configure
-```
-
-Option B: Using environment variables
-```bash
-export AWS_ACCESS_KEY_ID=...
-export AWS_SECRET_ACCESS_KEY=...
-export AWS_REGION=us-east-1
-```
-
-## Step 2: Create Production Environment
+**Steps:**
 
 ```bash
-# Create .env.production
-cp .env.example .env.production
-```
-
-Update `.env.production` with:
-```env
-DATABASE_URL=postgresql://user:password@host/db
-OPENAI_API_KEY=sk-...
-OPENAI_TRANSCRIBE_MODEL=whisper-1
-OPENAI_EMBED_MODEL=text-embedding-3-small
-OPENAI_GRADE_MODEL=gpt-4o-mini
-AUDIO_BUCKET_NAME=artifact-grader-audio-prod
-AWS_REGION=us-east-1
-LOG_LEVEL=info
-NODE_ENV=production
-```
-
-## Step 3: Build & Deploy
-
-### Option A: SST Deploy (Recommended)
-
-```bash
-# Deploy to AWS
-npm run deploy
-
-# You'll see:
-# ✓ Created stack artifact-grader-dev
-# ✓ API: https://abc123.execute-api.us-east-1.amazonaws.com
-# ✓ AudioBucket: artifact-grader-audio-prod
-```
-
-### Option B: Manual CDK Deployment
-
-```bash
-# Compile TypeScript
-npm run build
-
-# Deploy using CDK
-npx cdk deploy
-```
-
-## Step 4: Configure Lambda Environment Variables
-
-The SST deployment passes some env vars automatically, but you'll need to set secrets:
-
-```bash
-# Using AWS CLI
-aws lambda update-function-configuration \
-  --function-name artifact-grader-dev-postAttempts \
-  --environment Variables="{\
-    DATABASE_URL=postgresql://...,\
-    OPENAI_API_KEY=sk-...,\
-    OPENAI_TRANSCRIBE_MODEL=whisper-1,\
-    OPENAI_EMBED_MODEL=text-embedding-3-small,\
-    OPENAI_GRADE_MODEL=gpt-4o-mini,\
-    LOG_LEVEL=info\
-  }"
-
-# Repeat for other Lambda functions:
-# - artifact-grader-dev-postProcessAttempt
-# - artifact-grader-dev-getAttemptHandler
-```
-
-Or use AWS Systems Manager Parameter Store:
-```bash
-# Store secrets
-aws ssm put-parameter \
-  --name /artifact-grader/database-url \
-  --value "postgresql://..." \
-  --type SecureString
-
-aws ssm put-parameter \
-  --name /artifact-grader/openai-api-key \
-  --value "sk-..." \
-  --type SecureString
-```
-
-Then update Lambda functions to read from Parameter Store:
-```typescript
-// In handlers
-const databaseUrl = await getParameter('/artifact-grader/database-url');
-```
-
-## Step 5: Verify Deployment
-
-### Test API Endpoints
-
-```bash
-API_URL="https://abc123.execute-api.us-east-1.amazonaws.com"
-
-# Create attempt
-curl -X POST $API_URL/attempts \
-  -H "Content-Type: application/json" \
-  -d '{"userId":"test","questionId":"pm_case_001"}' | jq .
-
-# Get attempt
-ATTEMPT_ID="..."
-curl $API_URL/attempts/$ATTEMPT_ID | jq .
-```
-
-### Check CloudWatch Logs
-
-```bash
-# View Lambda logs
-aws logs tail /aws/lambda/artifact-grader-dev-postAttempts --follow
-
-# Or in AWS Console:
-# CloudWatch → Logs → Log Groups → /aws/lambda/artifact-grader-dev-*
-```
-
-### Monitor S3 Bucket
-
-```bash
-# List uploaded audio files
-aws s3 ls s3://artifact-grader-audio-prod/audio/
-```
-
-## Step 6: Database Maintenance
-
-### Backup Postgres
-
-```bash
-# Neon: Use their backup UI or CLI
-# Or take pg_dump:
-pg_dump $DATABASE_URL > backup.sql
-
-# Restore from backup:
-psql $DATABASE_URL < backup.sql
-```
-
-### Monitor Knowledge Base
-
-```bash
-psql $DATABASE_URL << 'EOF'
-SELECT 
-  COUNT(*) as total_chunks,
-  SUM(content_tokens) as total_tokens,
-  MIN(created_at) as oldest_chunk,
-  MAX(created_at) as newest_chunk
-FROM kb_chunks;
-EOF
-```
-
-## Step 7: Enable CloudFront (Optional CDN)
-
-For geographically distributed uploads, add CloudFront in front of S3:
-
-```bash
-# In sst.config.ts, add:
-const distribution = new cloudfront.Distribution(stack, "cdn", {
-  defaultBehavior: {
-    origin: new origins.S3Origin(audioBucket),
-  },
-});
-```
-
-## Step 8: Cost Optimization
-
-### Lambda
-
-- **Current:** Pay per invocation + compute time
-- **Optimize:** 
-  - Increase timeout if processing is hanging
-  - Increase memory to speed up processing (faster CPU)
-  - Consider Reserved Concurrency for predictable load
-
-```bash
-aws lambda put-function-concurrency \
-  --function-name artifact-grader-dev-postProcessAttempt \
-  --reserved-concurrent-executions 10
-```
-
-### S3
-
-- **Current:** Pay per upload + storage
-- **Optimize:**
-  - Add Lifecycle Policy to delete old audio after 30 days
-  - Use S3 Intelligent-Tiering for archival
-
-```bash
-aws s3api put-bucket-lifecycle-configuration \
-  --bucket artifact-grader-audio-prod \
-  --lifecycle-configuration '{
-    "Rules": [{
-      "ID": "DeleteOldAudio",
-      "Status": "Enabled",
-      "Expiration": {"Days": 30},
-      "Filter": {"Prefix": "audio/"}
-    }]
-  }'
-```
-
-### OpenAI
-
-- **Current:** Pay per API call (transcription, embeddings, grading)
-- **Optimize:**
-  - Cache embeddings for repeated queries
-  - Use cheaper models where possible (e.g., `gpt-3.5-turbo` instead of `gpt-4o-mini`)
-  - Batch embedding requests
-
-### Postgres
-
-- **Current:** Neon pay-as-you-go
-- **Optimize:**
-  - Add indexes (already in schema)
-  - Archive old attempts to cold storage
-  - Use read replicas for analytics
-
-## Step 9: Scaling Considerations
-
-### For 10K+ daily attempts:
-
-1. **Add SQS for async processing**
-   - Move `processAttempt` to an SQS worker Lambda
-   - Keep `createAttempt` synchronous
-   - Update `getAttempt` to support polling
-
-2. **Add Redis cache**
-   - Cache KB chunk embeddings
-   - Cache popular queries
-   - Use ElastiCache for managed Redis
-
-3. **Database optimization**
-   - Use read replicas
-   - Partition `kb_chunks` by `document_id`
-   - Add materialized views for analytics
-
-4. **Multi-region deployment**
-   - Deploy to multiple AWS regions
-   - Use Route53 for geo-routing
-   - Replicate Postgres using Neon's multi-region support
-
-## Step 10: Monitoring & Alerts
-
-### CloudWatch Alarms
-
-```bash
-# Lambda error rate
-aws cloudwatch put-metric-alarm \
-  --alarm-name artifact-grader-errors \
-  --alarm-description "Alert on Lambda errors" \
-  --metric-name Errors \
-  --namespace AWS/Lambda \
-  --statistic Sum \
-  --period 300 \
-  --threshold 10 \
-  --comparison-operator GreaterThanThreshold \
-  --alarm-actions arn:aws:sns:us-east-1:...
-
-# S3 access errors
-aws cloudwatch put-metric-alarm \
-  --alarm-name artifact-grader-s3-errors \
-  --alarm-description "S3 4xx errors" \
-  --metric-name 4xxErrors \
-  --namespace AWS/S3 \
-  --statistic Sum \
-  --period 300 \
-  --threshold 50 \
-  --comparison-operator GreaterThanThreshold
-```
-
-### Custom Metrics
-
-Track in your code:
-```typescript
-import { cloudwatch } from '@aws-sdk/client-cloudwatch';
-
-const cw = new cloudwatch.CloudWatchClient();
-
-// Log custom metric
-await cw.putMetricData({
-  Namespace: 'ArtifactGrader',
-  MetricData: [{
-    MetricName: 'ProcessingTime',
-    Value: processingTimeMs,
-    Unit: 'Milliseconds',
-  }],
-});
-```
-
-## Step 11: CI/CD Pipeline (GitHub Actions)
-
-Create `.github/workflows/deploy.yml`:
-
-```yaml
-name: Deploy to AWS
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-env:
-  AWS_REGION: us-east-1
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - run: npm ci
-
-      - run: npm run typecheck
-
-      - run: npm run build
-
-      - uses: aws-actions/configure-aws-credentials@v2
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions
-          aws-region: ${{ env.AWS_REGION }}
-
-      - run: npm run deploy
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-```
-
-## Rollback Procedure
-
-If something goes wrong after deployment:
-
-```bash
-# List deployments
-aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE
-
-# Rollback to previous version
-aws cloudformation cancel-update-stack --stack-name artifact-grader-dev
-
-# Or manually redeploy from last commit
-git checkout <last-known-good-commit>
-npm run deploy
-```
-
-## Production Checklist
-
-Before going live:
-
-- [ ] Database is backed up daily
-- [ ] CloudWatch alarms are configured
-- [ ] DNS is pointing to API Gateway
-- [ ] CORS is properly configured for your frontend
-- [ ] Rate limiting is enabled (API Gateway)
-- [ ] WAF is enabled for DDoS protection
-- [ ] Secrets are in AWS Secrets Manager, not code
-- [ ] Lambda functions have appropriate timeouts (default 60s, increase if needed)
-- [ ] S3 bucket has versioning enabled
-- [ ] Bucket is not publicly accessible
-- [ ] Logging is enabled for all services
-- [ ] API documentation is up to date
-- [ ] Load testing has been performed
-- [ ] Disaster recovery plan is in place
-
-## Support & Troubleshooting
-
-### Lambda timeout
-
-If processing times out:
-```bash
-# Increase timeout to 5 minutes
-aws lambda update-function-configuration \
-  --function-name artifact-grader-dev-postProcessAttempt \
-  --timeout 300
-```
-
-### Database connection pool exhausted
-
-Increase RDS proxy connection pool:
-```bash
-aws rds-proxy modify-db-proxy-target-group \
-  --proxy-name artifact-grader-proxy \
-  --target-group-name default \
-  --max-idle-connections-percent 50
-```
-
-### Out of memory
-
-Increase Lambda memory:
-```bash
-aws lambda update-function-configuration \
-  --function-name artifact-grader-dev-postProcessAttempt \
-  --memory-size 3008  # Max is 10GB (10240 MB)
+# 1. Install
+npm install
+
+# 2. Configure environment
+cp .env.example .env
+# Edit .env with your values
+
+# 3. Set up database
+npm run db:push
+
+# 4. Start dev server
+npm run dev
+# Server runs on http://localhost:3000
 ```
 
 ---
 
-For more help, check AWS documentation or open an issue in the repository.
+## Frontend Integration (Next.js)
+
+### 1. Install Dependencies
+
+```bash
+npm install axios zod
+```
+
+### 2. Create API Client (lib/api-client.ts)
+
+```typescript
+import axios from 'axios';
+import { z } from 'zod';
+
+const CreateAttemptResponseSchema = z.object({
+  attemptId: z.string(),
+  uploadUrl: z.string(),
+  audioKey: z.string(),
+});
+
+const AttemptResultSchema = z.object({
+  status: z.enum(['created', 'transcribing', 'grading', 'completed', 'failed']),
+  transcript: z.string().nullable(),
+  overallScore: z.number().nullable(),
+  dimensionScores: z.record(z.number()).nullable(),
+  strengths: z.string().array().nullable(),
+  areasForImprovement: z.string().array().nullable(),
+  citations: z.string().array().nullable(),
+  detailedFeedback: z.string().nullable(),
+  errorMessage: z.string().nullable(),
+});
+
+type CreateAttemptResponse = z.infer<typeof CreateAttemptResponseSchema>;
+type AttemptResult = z.infer<typeof AttemptResultSchema>;
+
+class ArtifactGraderAPI {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000') {
+    this.baseUrl = baseUrl;
+  }
+
+  async createAttempt(userId: string, questionId: string): Promise<CreateAttemptResponse> {
+    const response = await axios.post(`${this.baseUrl}/attempts`, {
+      userId,
+      questionId,
+    });
+    return CreateAttemptResponseSchema.parse(response.data);
+  }
+
+  async uploadAudio(uploadUrl: string, audioBuffer: Blob | File): Promise<void> {
+    const response = await axios.put(uploadUrl, audioBuffer, {
+      headers: { 'Content-Type': 'audio/webm' },
+    });
+    if (response.status !== 200) {
+      throw new Error(`Upload failed: ${response.statusText}`);
+    }
+  }
+
+  async processAttempt(attemptId: string, transcript: string): Promise<void> {
+    const response = await axios.post(`${this.baseUrl}/attempts/${attemptId}/process`, {
+      transcript,
+    });
+    if (response.status !== 200) {
+      throw new Error('Processing failed');
+    }
+  }
+
+  async getAttemptStatus(attemptId: string): Promise<AttemptResult> {
+    const response = await axios.get(`${this.baseUrl}/attempts/${attemptId}`);
+    return AttemptResultSchema.parse(response.data);
+  }
+
+  async pollAttemptStatus(
+    attemptId: string,
+    maxWaitTime: number = 300000,
+    pollInterval: number = 2000
+  ): Promise<AttemptResult> {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWaitTime) {
+      const result = await this.getAttemptStatus(attemptId);
+      
+      if (result.status === 'completed' || result.status === 'failed') {
+        return result;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+
+    throw new Error('Attempt processing timeout');
+  }
+}
+
+export const apiClient = new ArtifactGraderAPI();
+export type { CreateAttemptResponse, AttemptResult };
+```
+
+### 3. Audio Recording Hook (hooks/useAudioRecording.ts)
+
+```typescript
+import { useState, useRef } from 'react';
+
+export function useAudioRecording() {
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm',
+      });
+
+      chunksRef.current = [];
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.start();
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Microphone access denied:', error);
+      throw error;
+    }
+  };
+
+  const stopRecording = (): Promise<Blob> => {
+    return new Promise((resolve) => {
+      if (!mediaRecorderRef.current) {
+        throw new Error('Recording not started');
+      }
+
+      mediaRecorderRef.current.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        resolve(blob);
+      };
+
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+      setIsRecording(false);
+    });
+  };
+
+  return { isRecording, startRecording, stopRecording };
+}
+```
+
+### 4. Example Usage Component
+
+```typescript
+'use client';
+
+import { useState } from 'react';
+import { apiClient } from '@/lib/api-client';
+import { useAudioRecording } from '@/hooks/useAudioRecording';
+
+export function GraderForm() {
+  const [userId, setUserId] = useState('');
+  const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { startRecording, stopRecording } = useAudioRecording();
+
+  const handleCreateAttempt = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiClient.createAttempt(userId, 'pm_retention');
+      setAttemptId(response.attemptId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create attempt');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRecordAndProcess = async () => {
+    if (!attemptId) return;
+    try {
+      setLoading(true);
+      // Record audio
+      await startRecording();
+      // User records... then stop
+      const audioBlob = await stopRecording();
+
+      // Upload to backend
+      const uploadUrl = `${process.env.NEXT_PUBLIC_API_URL}/audio/audio/${attemptId}.webm`;
+      await apiClient.uploadAudio(uploadUrl, audioBlob);
+
+      // Process
+      await apiClient.processAttempt(attemptId, 'transcript here');
+
+      // Poll for results
+      const finalResult = await apiClient.pollAttemptStatus(attemptId);
+      setResult(finalResult);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-md">
+      <h1 className="text-2xl font-bold mb-4">Artifact Grader</h1>
+
+      {!attemptId ? (
+        <>
+          <input
+            type="text"
+            placeholder="User ID"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            className="w-full border p-2 mb-4"
+          />
+          <button
+            onClick={handleCreateAttempt}
+            disabled={loading || !userId}
+            className="w-full bg-blue-500 text-white p-2 rounded"
+          >
+            Create Attempt
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            onClick={handleRecordAndProcess}
+            disabled={loading}
+            className="w-full bg-green-500 text-white p-2 rounded"
+          >
+            Record & Process
+          </button>
+        </>
+      )}
+
+      {error && <div className="text-red-500 mt-4">{error}</div>}
+      {result && (
+        <div className="mt-4 p-4 bg-gray-100">
+          <p>Score: {result.overallScore}%</p>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### 5. Environment Setup
+
+Create `.env.local`:
+
+```bash
+# Local Development
+NEXT_PUBLIC_API_URL=http://localhost:3000
+
+# Production
+# NEXT_PUBLIC_API_URL=https://your-backend-domain.com
+```
+
+---
+
+## API Endpoints Reference
+
+### POST /attempts
+Create a new grading attempt.
+
+```json
+Request:
+{
+  "userId": "user-123",
+  "questionId": "pm_retention"
+}
+
+Response:
+{
+  "attemptId": "550e8400-e29b-41d4-a716-446655440000",
+  "uploadUrl": "http://localhost:3000/audio/audio/550e8400-e29b-41d4-a716-446655440000.webm",
+  "audioKey": "audio/550e8400-e29b-41d4-a716-446655440000.webm"
+}
+```
+
+### PUT {uploadUrl}
+Upload audio file.
+
+```
+Content-Type: audio/webm
+[binary audio data]
+
+Response: { "success": true }
+```
+
+### POST /attempts/{attemptId}/process
+Trigger grading pipeline.
+
+```json
+Request:
+{
+  "transcript": "I would focus on..."
+}
+
+Response: { "status": "processing" }
+```
+
+### GET /attempts/{attemptId}
+Get attempt status and results.
+
+```json
+Response:
+{
+  "status": "completed",
+  "transcript": "I would focus on...",
+  "overallScore": 78,
+  "dimensionScores": {
+    "problemSolving": 85,
+    "communication": 72,
+    "leadership": 78
+  },
+  "strengths": ["Clear thinking", "Structured approach"],
+  "areasForImprovement": ["Add metrics", "More specifics"],
+  "citations": ["Page 42: Best practices..."],
+  "detailedFeedback": "Strong response..."
+}
+```
+
+---
+
+## Environment Variables
+
+### Backend (.env)
+
+```bash
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/artifact_grader
+
+# OpenAI
+OPENAI_API_KEY=sk-your-key-here
+OPENAI_TRANSCRIBE_MODEL=whisper-1
+OPENAI_EMBED_MODEL=text-embedding-3-small
+OPENAI_GRADE_MODEL=gpt-4o-mini
+
+# AWS (production only)
+AWS_REGION=us-east-1
+AUDIO_BUCKET_NAME=artifact-grader-audio-bucket
+
+# Logging
+LOG_LEVEL=info
+```
+
+### Frontend (.env.local)
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:3000
+```
+
+---
+
+## Troubleshooting
+
+**Backend won't start:**
+```bash
+psql $DATABASE_URL -c "SELECT 1;"
+npm run build
+npm run dev
+```
+
+**Frontend can't reach API:**
+```bash
+curl http://localhost:3000/attempts
+# Verify NEXT_PUBLIC_API_URL in .env.local
+```
+
+**Audio upload fails:**
+```bash
+mkdir -p uploads/audio
+npm run dev
+```
+
+---
+
+## Deployment
+
+### Railway/Render (Recommended for MVP)
+
+1. Push code to GitHub
+2. Connect repo to Railway/Render
+3. Add environment variables (DATABASE_URL, OPENAI_API_KEY)
+4. Auto-deploys on git push
+
+### AWS Lambda + RDS
+
+1. Create RDS Postgres instance
+2. Create S3 bucket for audio storage
+3. Deploy with `sst deploy --stage prod`
+
+---
+
+**Backend:** http://localhost:3000
+**Frontend:** Your Next.js app connected via NEXT_PUBLIC_API_URL

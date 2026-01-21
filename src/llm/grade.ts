@@ -11,7 +11,7 @@ import {
   GradingContext,
 } from "./prompts";
 
-import openai from "openai";
+import OpenAI from "openai";
 
 const MAX_RETRIES = 2;
 
@@ -20,7 +20,7 @@ export async function gradeAttempt(
 ): Promise<GradeResult> {
   try {
     const env = getEnv();
-    const client = new openai.OpenAI({
+    const client = new OpenAI({
       apiKey: env.OPENAI_API_KEY,
     });
 

@@ -9,12 +9,25 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   error: 3,
 };
 
+let envCache: any = null;
+
+function getLogLevel(): number {
+  try {
+    if (!envCache) {
+      envCache = getEnv();
+    }
+    const level = envCache.LOG_LEVEL as LogLevel;
+    return LOG_LEVELS[level] ?? LOG_LEVELS.info;
+  } catch {
+    return LOG_LEVELS.info; // Default to info if env validation fails
+  }
+}
+
 class Logger {
   private level: number;
 
   constructor() {
-    const env = getEnv();
-    this.level = LOG_LEVELS[env.LOG_LEVEL];
+    this.level = getLogLevel();
   }
 
   private shouldLog(level: LogLevel): boolean {
@@ -50,7 +63,18 @@ class Logger {
 
   error(message: string, error?: unknown): void {
     if (this.shouldLog("error")) {
-      const errorData = error instanceof Error ? error.message : error;
+      let errorData = error;
+      if (error instanceof Error) {
+        const causeValue = (error as any).cause;
+        errorData = {
+          message: error.message,
+          stack: error.stack,
+          cause:
+            causeValue instanceof Error
+              ? { message: causeValue.message, stack: causeValue.stack }
+              : causeValue ?? undefined,
+        };
+      }
       console.error(this.formatLog("error", message, errorData));
     }
   }

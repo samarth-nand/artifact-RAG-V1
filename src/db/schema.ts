@@ -3,13 +3,11 @@ import {
   text,
   timestamp,
   uuid,
-  vector,
   integer,
   jsonb,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 
 // Knowledge Base Tables
 export const kbDocuments = pgTable("kb_documents", {
@@ -34,17 +32,14 @@ export const kbChunks = pgTable(
     section: text("section"),
     content: text("content").notNull(),
     contentTokens: integer("content_tokens"),
-    embedding: vector("embedding", { dimensions: 1536 }),
+    // Store embedding as JSON in a TEXT column (no pgvector dependency).
+    embedding: text("embedding").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => ({
     documentChunkIdx: uniqueIndex("kb_chunks_document_chunk_idx").on(
       table.documentId,
       table.chunkIndex
-    ),
-    embeddingIdx: index("kb_chunks_embedding_idx").using(
-      "ivfflat",
-      table.embedding
     ),
   })
 );
@@ -83,4 +78,46 @@ export const attemptResults = pgTable(
     citations: jsonb("citations").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   }
+);
+
+// Interview session tables
+export const interviewSessions = pgTable(
+  "interview_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull(),
+    questionId: text("question_id").notNull(),
+    state: text("state").notNull(), // LIVE | GRADING | DONE | FAILED
+    questionText: text("question_text").notNull(),
+    realtimeSessionId: text("realtime_session_id"), // OpenAI Realtime session ID
+    finalTranscript: text("final_transcript"),
+    error: text("error"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("interview_sessions_user_idx").on(table.userId),
+    stateIdx: index("interview_sessions_state_idx").on(table.state),
+    createdIdx: index("interview_sessions_created_idx").on(table.createdAt),
+  })
+);
+
+export const interviewTurns = pgTable(
+  "interview_turns",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => interviewSessions.id, { onDelete: "cascade" }),
+    role: text("role").notNull(), // user | assistant
+    type: text("type").notNull(), // question | clarify | answer | followup
+    transcript: text("transcript").notNull(), // Always store transcript
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    sessionIdx: index("interview_turns_session_idx").on(
+      table.sessionId,
+      table.createdAt
+    ),
+  })
 );

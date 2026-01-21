@@ -7,8 +7,7 @@ import { eq } from "drizzle-orm";
 import { logger } from "../shared/logger";
 import { chunkText, cleanText, countTokens } from "./chunking";
 import { computeEmbeddings } from "./embed";
-
-const pdfParse = require("pdf-parse");
+import pdfParse from "pdf-parse";
 
 export interface IngestOptions {
   file: string;
@@ -114,7 +113,7 @@ export async function ingestPdf(options: IngestOptions): Promise<void> {
       section: chunk.metadata.section,
       content: chunk.content,
       contentTokens: chunk.tokens,
-      embedding: embeddings[idx] as any,
+      embedding: JSON.stringify(embeddings[idx] as number[]),
     }));
 
     await db.insert(kbChunks).values(chunkRecords);

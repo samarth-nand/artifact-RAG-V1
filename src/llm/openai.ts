@@ -1,13 +1,12 @@
 import { getEnv } from "../shared/env";
+import OpenAI from "openai";
 
-const openai = require("openai");
-
-let cachedClient: InstanceType<typeof openai.OpenAI> | null = null;
+let cachedClient: InstanceType<typeof OpenAI> | null = null;
 
 export function getOpenAIClient() {
   if (!cachedClient) {
     const env = getEnv();
-    cachedClient = new openai.OpenAI({
+    cachedClient = new OpenAI({
       apiKey: env.OPENAI_API_KEY,
     });
   }

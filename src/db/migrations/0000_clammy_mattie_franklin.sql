@@ -1,0 +1,2 @@
+-- Baseline migration required by drizzle journal
+-- No-op: original schema snapshot

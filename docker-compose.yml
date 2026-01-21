@@ -1,0 +1,35 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: artifact_grader
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d artifact_grader"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    environment:
+      # Update these via .env or your shell before running
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_GRADE_MODEL: ${OPENAI_GRADE_MODEL:-gpt-4o-mini}
+      AUDIO_BUCKET_NAME: ${AUDIO_BUCKET_NAME:-local-audio}
+      # App talks to Postgres over the docker network
+      DATABASE_URL: postgres://postgres:postgres@db:5432/artifact_grader
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

@@ -1,10 +1,18 @@
-import { QUESTION_BANK, DEFAULT_RUBRIC_DIMENSIONS } from "../shared/types";
 import { RetrievedChunk } from "../kb/retrieve";
+import { getQuestion } from "../interview/questionBank";
+
+export interface RubricDimension {
+  name: string;
+  out_of: number;
+  description: string;
+}
 
 export interface GradingContext {
   questionId: string;
+  questionText: string;
   transcript: string;
   retrievedChunks: RetrievedChunk[];
+  rubricDimensions?: RubricDimension[];
 }
 
 export function buildSystemPrompt(): string {
@@ -18,6 +26,14 @@ CRITICAL RULES:
 5. Return ONLY valid JSON matching the exact schema. No extra text before or after.
 6. If the transcript doesn't address certain rubric dimensions, score them lower with clear rationale.
 7. Identify missed concepts from the provided knowledge base that would strengthen the answer.
+
+TRANSCRIPT EVIDENCE REQUIREMENT (VERY IMPORTANT):
+- For EACH rubric dimension in dimension_scores, include:
+  - rationale: explain the score using the rubric AND the KB excerpts
+  - evidence_from_transcript: an array of 1-3 SHORT, VERBATIM quotes copied exactly from the transcript that justify the score.
+- Your rationale must explicitly connect the evidence to the grade in this form:
+  "For <dimension>, you said '<verbatim quote>' which is (correct/partially correct/incorrect/missing) because ..."
+- If there is no relevant evidence for a dimension, set evidence_from_transcript to [] and explain what was missing in the rationale.
 
 You will output a JSON object with:
 - overall_score (0-100)
@@ -33,12 +49,23 @@ CRITICAL: Respond with ONLY the JSON object, nothing else.`;
 }
 
 export function buildUserPrompt(context: GradingContext): string {
-  const question = QUESTION_BANK[context.questionId];
-  if (!question) {
-    throw new Error(`Unknown question: ${context.questionId}`);
+  // Try to get rubric dimensions from context, or fallback to question bank
+  let rubricDimensions = context.rubricDimensions;
+  
+  if (!rubricDimensions) {
+    try {
+      const question = getQuestion(context.questionId);
+      rubricDimensions = question.rubricDimensions;
+    } catch (error) {
+      // Question not in bank - use generic rubric
+      rubricDimensions = [
+        { name: "Clarity", out_of: 25, description: "Clear and well-structured response" },
+        { name: "Depth", out_of: 25, description: "Thorough analysis with supporting details" },
+        { name: "Framework", out_of: 25, description: "Systematic approach to problem-solving" },
+        { name: "Insight", out_of: 25, description: "Unique perspectives and critical thinking" },
+      ];
+    }
   }
-
-  const rubricDimensions = question.rubricDimensions || DEFAULT_RUBRIC_DIMENSIONS;
 
   const retrievedContext = context.retrievedChunks
     .map(
@@ -53,13 +80,13 @@ ${chunk.content}
     .join("\n");
 
   return `Interview Question:
-"${question.questionText}"
+"${context.questionText}"
 
 Candidate's Transcript:
 ${context.transcript}
 
 Rubric Dimensions to Score:
-${rubricDimensions.map((d) => `- ${d}`).join("\n")}
+${rubricDimensions.map((d) => `- ${d.name} (${d.out_of}): ${d.description}`).join("\n")}
 
 Relevant Knowledge Base Excerpts:
 ${retrievedContext}

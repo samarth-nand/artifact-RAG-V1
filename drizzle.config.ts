@@ -6,11 +6,11 @@ const env = getEnv();
 export default {
   schema: "./src/db/schema.ts",
   out: "./src/db/migrations",
-  driver: "pg",
+  dialect: "postgresql",
   dbCredentials: {
-    connectionString: env.DATABASE_URL,
+    url: env.DATABASE_URL,
   },
   introspect: {
-    casing: "snake_case",
+    casing: "preserve",
   },
 } satisfies Config;

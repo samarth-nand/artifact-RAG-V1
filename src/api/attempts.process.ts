@@ -1,12 +1,13 @@
 import { getDb } from "../db";
 import { attempts, attemptResults } from "../db/schema";
 import { eq, and } from "drizzle-orm";
-import { downloadAudioFromS3 } from "../util/s3";
+import { loadAudioLocally } from "../util/local-storage";
 import { transcribeAudio } from "../llm/transcribe";
 import { gradeAttempt } from "../llm/grade";
 import { retrieveChunks } from "../kb/retrieve";
 import { logger } from "../shared/logger";
 import { ProcessAttemptResponseSchema } from "../shared/zod";
+import { getQuestion } from "../interview/questionBank";
 
 export async function processAttempt(
   attemptId: string
@@ -36,8 +37,8 @@ export async function processAttempt(
       .where(eq(attempts.id, attemptId as any));
 
     // Download audio from S3
-    logger.info("Downloading audio from S3", { key: attempt.audioS3Key });
-    const audioBuffer = await downloadAudioFromS3(attempt.audioS3Key);
+    logger.info("Downloading audio from local storage", { key: attempt.audioS3Key });
+    const audioBuffer = await loadAudioLocally(attempt.audioS3Key);
 
     // Transcribe audio
     logger.info("Starting transcription");
@@ -59,10 +60,21 @@ export async function processAttempt(
     logger.info("Retrieving knowledge base chunks");
     const retrievedChunks = await retrieveChunks(transcript);
 
+    // Get question text (try from question bank, use fallback if not found)
+    let questionText: string;
+    try {
+      const question = getQuestion(attempt.questionId);
+      questionText = question.questionText;
+    } catch (error) {
+      logger.warn(`Question ${attempt.questionId} not in bank, using ID as text`);
+      questionText = `[Question: ${attempt.questionId}]`;
+    }
+
     // Grade attempt
     logger.info("Starting grading");
     const gradeResult = await gradeAttempt({
       questionId: attempt.questionId,
+      questionText,
       transcript,
       retrievedChunks,
     });

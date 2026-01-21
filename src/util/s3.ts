@@ -90,3 +90,36 @@ export async function generatePresignedDownloadUrl(
     throw error;
   }
 }
+
+export async function putObject(params: {
+  key: string;
+  body: Buffer | Uint8Array | string;
+  contentType?: string;
+}): Promise<void> {
+  const env = getEnv();
+  const client = getS3Client();
+
+  const command = new PutObjectCommand({
+    Bucket: env.AUDIO_BUCKET_NAME,
+    Key: params.key,
+    Body: params.body,
+    ContentType: params.contentType,
+  });
+
+  await client.send(command);
+}
+
+export async function getSignedGetUrl(
+  key: string,
+  expiresIn: number = 3600
+): Promise<string> {
+  const env = getEnv();
+  const client = getS3Client();
+
+  const command = new GetObjectCommand({
+    Bucket: env.AUDIO_BUCKET_NAME,
+    Key: key,
+  });
+
+  return getSignedUrl(client, command, { expiresIn });
+}

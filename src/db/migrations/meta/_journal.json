@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1766745831227,
+      "tag": "0000_clammy_mattie_franklin",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1766745858041,
+      "tag": "0001_empty_captain_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1767504000000,
+      "tag": "0002_sync_interview_sessions",
+      "breakpoints": true
+    }
+  ]
+}
