@@ -239,6 +239,51 @@ export const ClarityGradeResponseSchema = z.object({
 
 export type ClarityGradeResponse = z.infer<typeof ClarityGradeResponseSchema>;
 
+// Interview session WebRTC schemas
+export const CreateInterviewSessionRequestSchema = z.object({
+  mode: z.enum(["pm_mock", "technical", "behavioral"]).default("pm_mock"),
+  voice: z.enum(["alloy", "echo", "fable", "onyx", "nova", "shimmer"]).optional(),
+  difficulty: z.enum(["easy", "medium", "hard"]).optional(),
+  nonce: z.string().optional(),
+});
+
+export const CreateInterviewSessionResponseSchema = z.object({
+  sessionId: z.string().uuid(),
+});
+
+export const ConnectInterviewSessionRequestSchema = z.object({
+  // No SDP needed - client will connect directly to OpenAI
+});
+
+export const ConnectInterviewSessionResponseSchema = z.object({
+  encryptedSecret: z.string(), // RSA-encrypted ephemeral secret
+  realtimeSessionId: z.string(),
+  encryption: z.object({
+    algorithm: z.literal("RSA-OAEP"),
+    hash: z.literal("SHA-256"),
+    encoding: z.literal("base64"),
+  }),
+});
+
+// Standardized error response
+export const ErrorResponseSchema = z.object({
+  error: z.object({
+    code: z.enum([
+      "UNAUTHORIZED",
+      "FORBIDDEN",
+      "NOT_FOUND",
+      "ALREADY_USED",
+      "EXPIRED",
+      "RATE_LIMITED",
+      "OPENAI_ERROR",
+      "VALIDATION_ERROR",
+      "INTERNAL_ERROR",
+    ]),
+    message: z.string(),
+    details: z.any().optional(),
+  }),
+});
+
 export type CreateAttemptRequest = z.infer<typeof CreateAttemptRequestSchema>;
 export type CreateAttemptResponse = z.infer<
   typeof CreateAttemptResponseSchema

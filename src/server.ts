@@ -14,6 +14,10 @@ import {
   postSessionEnd,
   getSessionResultsHandler,
   postClarityGrade,
+  postInterviewSessions,
+  postInterviewSessionConnect,
+  postAssessmentSessions,
+  postAssessmentSessionSubmit,
 } from "./api/index";
 
 import {
@@ -36,7 +40,7 @@ app.use(cors({
   origin: corsOrigins,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-User-Id"],
 }));
 
 app.use(express.json({ limit: "50mb" }));
@@ -54,6 +58,10 @@ const getSessionHandlerTyped = getSessionHandler as unknown as LambdaHandler;
 const postSessionEndHandler = postSessionEnd as unknown as LambdaHandler;
 const getSessionResultsHandlerTyped = getSessionResultsHandler as unknown as LambdaHandler;
 const postClarityGradeHandler = postClarityGrade as unknown as LambdaHandler;
+const postInterviewSessionsHandler = postInterviewSessions as unknown as LambdaHandler;
+const postInterviewSessionConnectHandler = postInterviewSessionConnect as unknown as LambdaHandler;
+const postAssessmentSessionsHandler = postAssessmentSessions as unknown as LambdaHandler;
+const postAssessmentSessionSubmitHandler = postAssessmentSessionSubmit as unknown as LambdaHandler;
 
 function normalizeHeaders(headers: Request["headers"]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -180,6 +188,34 @@ app.post("/clarity/grade", async (req: Request, res: Response) => {
   sendResult(res, result);
 });
 
+// Interview WebRTC handshake endpoints
+app.post("/interview/sessions", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  const result = await postInterviewSessionsHandler(event);
+  sendResult(res, result);
+});
+
+app.post("/interview/sessions/:sessionId/connect", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { sessionId: req.params.sessionId };
+  const result = await postInterviewSessionConnectHandler(event);
+  sendResult(res, result);
+});
+
+// Structure Sprint assessment endpoints
+app.post("/assessment_sessions", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  const result = await postAssessmentSessionsHandler(event);
+  sendResult(res, result);
+});
+
+app.post("/assessment_sessions/:sessionId/submit", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { sessionId: req.params.sessionId };
+  const result = await postAssessmentSessionSubmitHandler(event);
+  sendResult(res, result);
+});
+
 // Health check endpoint (always available)
 app.get("/healthz", (_req: Request, res: Response) => {
   res.status(200).json({ ok: true, timestamp: new Date().toISOString() });
@@ -207,6 +243,10 @@ if (env.SERVE_FRONTEND === "true") {
         "POST /sessions/:id/end",
         "GET /sessions/:id/results",
         "POST /clarity/grade",
+        "POST /interview/sessions",
+        "POST /interview/sessions/:id/connect",
+        "POST /assessment_sessions",
+        "POST /assessment_sessions/:id/submit",
         "GET /healthz"
       ]
     });

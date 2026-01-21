@@ -10,6 +10,10 @@ import { corsHeaders, createErrorResponse, handleCors } from "./cors";
 import { createSession, getSession, endSession, getSessionResults as getSessionResultsService } from "./sessions";
 
 export { postClarityGrade } from "./clarity.grade";
+export { postInterviewSessions } from "./interview.sessions.create";
+export { postInterviewSessionConnect } from "./interview.sessions.connect";
+export { createAssessmentSession as postAssessmentSessions } from "./assessment/sessions.create";
+export { submitAssessment as postAssessmentSessionSubmit } from "./assessment/sessions.submit";
 
 // Initialize DB and auto-ingestion once
 let dbInitialized = false;
