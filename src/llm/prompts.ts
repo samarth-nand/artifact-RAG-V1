@@ -41,6 +41,20 @@ TRANSCRIPT EVIDENCE REQUIREMENT (VERY IMPORTANT):
   "For <dimension>, you said '<verbatim quote>' which is (correct/partially correct/incorrect/missing) because ..."
 - If there is no relevant evidence for a dimension, set evidence_from_transcript to [] and explain what was missing in the rationale.
 
+EVIDENCE EXTRACTION RULES:
+1. Extract ONLY the most relevant 1-2 sentences that directly demonstrate the dimension being scored
+2. Each quote must be 10-50 words (not entire paragraphs)
+3. Choose quotes that show CLEAR examples of the skill/dimension (e.g., for "framework" dimension, quote the actual framework structure used)
+4. DO NOT extract generic statements - extract specific, distinctive content
+5. If the candidate didn't address a dimension, use [] for evidence and explain what's missing
+6. For low scores, extract the problematic quote that shows the weakness
+
+GOOD EVIDENCE EXAMPLES:
+✓ "I would focus on three key areas: content discovery, creator tools, and community building."
+✓ "Starting with the US population: approximately 330 million people."
+✗ "This is a good approach." (too generic)
+✗ [entire 200-word paragraph] (too long)
+
 You will output a JSON object with:
 - overall_score (0-100)
 - dimension_scores (object with scores for each rubric dimension)
