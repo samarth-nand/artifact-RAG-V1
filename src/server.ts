@@ -21,6 +21,8 @@ import {
   postAssessmentSessions,
   postAssessmentSessionSubmit,
   waitForSessionResults,
+  getAdminExemplars,
+  postAdminExemplarVerify,
 } from "./api/index";
 
 import {
@@ -72,6 +74,8 @@ const postInterviewSessionConnectHandler = postInterviewSessionConnect as unknow
 const postAssessmentSessionsHandler = postAssessmentSessions as unknown as LambdaHandler;
 const postAssessmentSessionSubmitHandler = postAssessmentSessionSubmit as unknown as LambdaHandler;
 const waitForSessionResultsHandler = waitForSessionResults as unknown as LambdaHandler;
+const getAdminExemplarsHandler = getAdminExemplars as unknown as LambdaHandler;
+const postAdminExemplarVerifyHandler = postAdminExemplarVerify as unknown as LambdaHandler;
 
 function normalizeHeaders(headers: Request["headers"]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -230,6 +234,20 @@ app.post("/assessment_sessions/:sessionId/submit", async (req: Request, res: Res
   const event = expressToLambdaEvent(req);
   event.pathParameters = { sessionId: req.params.sessionId };
   const result = await postAssessmentSessionSubmitHandler(event);
+  sendResult(res, result);
+});
+
+// Admin exemplar endpoints (learning system)
+app.get("/admin/exemplars", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.queryStringParameters = req.query as Record<string, string>;
+  const result = await getAdminExemplarsHandler(event);
+  sendResult(res, result);
+});
+
+app.post("/admin/exemplars/verify", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  const result = await postAdminExemplarVerifyHandler(event);
   sendResult(res, result);
 });
 

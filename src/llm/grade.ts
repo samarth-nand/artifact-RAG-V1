@@ -10,13 +10,15 @@ import {
   buildRepairPrompt,
   GradingContext,
 } from "./prompts";
+import { getRelevantExemplars, recordGradingHistory } from "./exemplars";
 
 import OpenAI from "openai";
 
 const MAX_RETRIES = 2;
 
 export async function gradeAttempt(
-  context: GradingContext
+  context: GradingContext,
+  sessionId?: string
 ): Promise<GradeResult> {
   try {
     const env = getEnv();
@@ -24,8 +26,39 @@ export async function gradeAttempt(
       apiKey: env.OPENAI_API_KEY,
     });
 
+    // Retrieve relevant exemplars for this question category
+    let exemplars: Awaited<ReturnType<typeof getRelevantExemplars>> = [];
+    try {
+      // Extract category from question or use default
+      const category = context.questionText.includes("design") ? "product_design" :
+                       context.questionText.includes("estimate") ? "metrics" :
+                       context.questionText.includes("improve") ? "strategy" : "strategy";
+      
+      exemplars = await getRelevantExemplars(
+        context.questionId,
+        category,
+        2,
+        context.transcript
+      );
+      logger.debug("Retrieved exemplars for grading", { count: exemplars.length, category });
+    } catch (error) {
+      logger.warn("Failed to retrieve exemplars", error);
+      // Continue without exemplars
+    }
+
+    // Add exemplars to context
+    const enrichedContext: GradingContext = {
+      ...context,
+      exemplars: exemplars.map(e => ({
+        transcript: e.transcript,
+        overallScore: e.overallScore,
+        dimensionScores: e.dimensionScores,
+        keyStrengths: e.keyStrengths,
+      })),
+    };
+
     const systemPrompt = buildSystemPrompt();
-    const userPrompt = buildUserPrompt(context);
+    const userPrompt = buildUserPrompt(enrichedContext);
 
     let lastResponse = "";
     let lastError = "";
@@ -72,6 +105,33 @@ export async function gradeAttempt(
         const result = GradeResultSchema.parse(parsedResult);
 
         logger.info("Grading completed successfully");
+
+        // Record grading history for future calibration
+        try {
+          // Extract numeric scores from dimension_scores object
+          const numericScores: Record<string, number> = {};
+          if (typeof result.dimension_scores === "object" && result.dimension_scores !== null) {
+            for (const [key, value] of Object.entries(result.dimension_scores)) {
+              if (typeof value === "number") {
+                numericScores[key] = value;
+              } else if (typeof value === "object" && value !== null && "score" in value) {
+                numericScores[key] = (value as any).score;
+              }
+            }
+          }
+          
+          await recordGradingHistory(
+            sessionId || null,
+            context.questionId,
+            context.transcript,
+            result.overall_score,
+            numericScores,
+            result
+          );
+        } catch (historyError) {
+          logger.warn("Failed to record grading history", historyError);
+        }
+
         return result;
       } catch (error) {
         lastError =

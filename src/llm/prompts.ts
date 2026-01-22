@@ -13,6 +13,12 @@ export interface GradingContext {
   transcript: string;
   retrievedChunks: RetrievedChunk[];
   rubricDimensions?: RubricDimension[];
+  exemplars?: Array<{
+    transcript: string;
+    overallScore: number;
+    dimensionScores: Record<string, number>;
+    keyStrengths: string[];
+  }>;
 }
 
 export function buildSystemPrompt(): string {
@@ -79,6 +85,22 @@ ${chunk.content}
     )
     .join("\n");
 
+  // Add exemplars section if available
+  let exemplarsSection = "";
+  if (context.exemplars && context.exemplars.length > 0) {
+    exemplarsSection = "\n\nHIGH-SCORING EXEMPLAR ANSWERS:\nLearn from these verified high-scoring responses:\n\n";
+    context.exemplars.forEach((exemplar, idx) => {
+      exemplarsSection += `EXEMPLAR ${idx + 1} (Score: ${exemplar.overallScore}/100):
+${exemplar.transcript}
+
+Why this scored well:
+${exemplar.keyStrengths.map(s => `- ${s}`).join('\n')}
+Dimension Scores: ${Object.entries(exemplar.dimensionScores).map(([k, v]) => `${k}: ${v}`).join(", ")}
+
+---\n\n`;
+    });
+  }
+
   return `Interview Question:
 "${context.questionText}"
 
@@ -89,9 +111,9 @@ Rubric Dimensions to Score:
 ${rubricDimensions.map((d) => `- ${d.name} (${d.out_of}): ${d.description}`).join("\n")}
 
 Relevant Knowledge Base Excerpts:
-${retrievedContext}
+${retrievedContext}${exemplarsSection}
 
-Please grade the candidate's response using ONLY the provided book excerpts as reference. Cite specific chunk IDs and page ranges for all major points. Return only the JSON object.`;
+Please grade the candidate's response using ONLY the provided book excerpts as reference. Use the exemplars to calibrate your grading - ensure similar quality receives similar scores. Cite specific chunk IDs and page ranges for all major points. Return only the JSON object.`;
 }
 
 export function buildRepairPrompt(malformedJson: string): string {

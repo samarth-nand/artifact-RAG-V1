@@ -14,7 +14,7 @@ import {
 } from "aws-lambda";
 import * as fs from "fs";
 import * as path from "path";
-import { postAttempts, postProcessAttempt, getAttemptHandler, postSessions, getSessionHandler, postSessionEnd, getSessionResultsHandler } from "./dist/api/index.js";
+import { postAttempts, postProcessAttempt, getAttemptHandler, postSessions, getSessionHandler, postSessionEnd, getSessionResultsHandler, getAdminExemplars, postAdminExemplarVerify } from "./dist/api/index.js";
 import { saveAudioLocally } from "./dist/util/local-storage.js";
 
 const app = express();
@@ -35,6 +35,8 @@ const postSessionsHandler = postSessions as unknown as LambdaHandler;
 const getSessionHandlerTyped = getSessionHandler as unknown as LambdaHandler;
 const postSessionEndHandler = postSessionEnd as unknown as LambdaHandler;
 const getSessionResultsHandlerTyped = getSessionResultsHandler as unknown as LambdaHandler;
+const getAdminExemplarsHandler = getAdminExemplars as unknown as LambdaHandler;
+const postAdminExemplarVerifyHandler = postAdminExemplarVerify as unknown as LambdaHandler;
 
 function expressToLambdaEvent(req: Request): APIGatewayProxyEventV2 {
   return {
@@ -179,6 +181,32 @@ app.get("/sessions/:sessionId/results", async (req: Request, res: Response) => {
   }
 });
 
+// ===== ADMIN EXEMPLAR ROUTES =====
+
+app.get("/admin/exemplars", async (req: Request, res: Response) => {
+  try {
+    const event = expressToLambdaEvent(req);
+    event.queryStringParameters = req.query as Record<string, string>;
+    const result = await getAdminExemplarsHandler(event);
+    sendResult(res, result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+app.post("/admin/exemplars/verify", async (req: Request, res: Response) => {
+  try {
+    const event = expressToLambdaEvent(req);
+    event.body = JSON.stringify(req.body);
+    const result = await postAdminExemplarVerifyHandler(event);
+    sendResult(res, result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 // Handle audio uploads for local testing
 app.put(/^\/audio\/(.+)$/, async (req: Request, res: Response) => {
   try {
@@ -206,7 +234,7 @@ app.put(/^\/audio\/(.+)$/, async (req: Request, res: Response) => {
   }
 });
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`
 ✨ Artifact Grader Dev Server
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -215,4 +243,9 @@ app.listen(port, () => {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Ready for testing!
   `);
+});
+
+server.on('error', (err) => {
+  console.error('Server error:', err);
+  process.exit(1);
 });

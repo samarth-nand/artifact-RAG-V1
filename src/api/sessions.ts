@@ -202,7 +202,7 @@ export async function getSessionResults(sessionId: string) {
       questionText: session.questionText,
       transcript: session.finalTranscript,
       retrievedChunks,
-    });
+    }, sessionId);
 
     // Update session to DONE
     await db

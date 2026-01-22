@@ -4,8 +4,8 @@ services:
     env: node
     # Render may omit devDependencies when NODE_ENV=production, which breaks TypeScript builds
     # (missing @types/*) and runtime migrations (drizzle-kit is a devDependency).
-    buildCommand: npm ci --include=dev && npm run build
-    startCommand: npm run db:migrate && npm start
+    buildCommand: npm ci --include=dev && npm run build && npm run db:push
+    startCommand: npx tsx scripts/ingest-exemplars.ts && npm start
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
