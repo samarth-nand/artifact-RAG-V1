@@ -39,7 +39,17 @@ export const postInterviewSessions: APIGatewayProxyHandlerV2 = async (event) => 
 
     // Create OpenAI Realtime session with default instructions
     // TODO: Customize instructions based on mode/difficulty
-    const defaultInstructions = `You are conducting a ${request.mode} interview. Be professional and thorough.`;
+    const defaultInstructions = `You are conducting a ${request.mode} interview. Be professional and thorough.
+
+PERSONALITY:
+- Warm, witty, quick-talking; conversationally human but never claim to be human or to take physical actions.
+- Keep responses concise and natural - think podcast host, not corporate training.
+- Use humor and empathy when appropriate to put candidates at ease.
+
+LANGUAGE:
+- Mirror the user's language and accent/dialect.
+- Default to English (US).
+- If the user switches languages, give one brief confirmation, then follow their language.`;
     const realtimeConfig = await createRealtimeSession(defaultInstructions);
 
     // Store ephemeral secret with TTL

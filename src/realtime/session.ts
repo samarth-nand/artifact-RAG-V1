@@ -35,7 +35,7 @@ export async function createRealtimeSession(
       model: "gpt-4o-realtime-preview-2024-12-17",
       modalities: ["text", "audio"],
       instructions: systemInstructions,
-      voice: "alloy",
+      voice: "marin",
       input_audio_format: "pcm16",
       output_audio_format: "pcm16",
       // Enable transcription of the user's microphone input so we can show
