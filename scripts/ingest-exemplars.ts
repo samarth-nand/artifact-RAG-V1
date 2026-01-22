@@ -7,6 +7,7 @@
 
 import { getDb } from "../src/db/index.js";
 import { exemplarTranscripts } from "../src/db/schema.js";
+import { eq } from "drizzle-orm";
 import { logger } from "../src/shared/logger.js";
 import * as fs from "fs";
 
@@ -227,6 +228,21 @@ async function ingestExemplars() {
     let successCount = 0;
     for (const exemplar of HARDCODED_EXEMPLARS) {
       try {
+        // Check if exemplar already exists
+        const existing = await db
+          .select()
+          .from(exemplarTranscripts)
+          .where(eq(exemplarTranscripts.questionId, exemplar.questionId))
+          .limit(1);
+
+        if (existing.length > 0) {
+          console.log(
+            `⏭️  ${exemplar.questionText.substring(0, 50)}... (already exists)`
+          );
+          successCount++;
+          continue;
+        }
+
         const result = await db
           .insert(exemplarTranscripts)
           .values({
