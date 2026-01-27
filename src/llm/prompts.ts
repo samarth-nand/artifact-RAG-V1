@@ -54,15 +54,38 @@ GOOD EVIDENCE EXAMPLES:
 ✗ "This is a good approach." (too generic)
 ✗ [entire 200-word paragraph] (too long)
 
-You will output a JSON object with:
-- overall_score (0-100)
-- dimension_scores (object with scores for each rubric dimension)
-- strengths (array of key strengths)
-- improvements (array of actionable improvements)
-- rewrite_suggestion (brief suggestion for the candidate to strengthen response)
-- next_drill (specific practice focus area)
+You will output a JSON object with THESE EXACT FIELDS:
+{
+  "overall_score": <number 0-100>,
+  "dimension_scores": {
+    "<DimensionName>": {
+      "score": <number 0-100>,
+      "out_of": 25,
+      "rationale": "<string explaining the score>",
+      "evidence_from_transcript": ["<quote1>", "<quote2>"],
+      "citations": []
+    },
+    ... (repeat for each rubric dimension)
+  },
+  "strengths": ["<strength1>", "<strength2>"],
+  "improvements": ["<improvement1>", "<improvement2>"],
+  "missed_concepts": ["<concept1>", "<concept2>"],
+  "rewrite_suggestion": "<brief actionable suggestion>",
+  "next_drill": "<specific practice focus>",
+  "citations": []
+}
 
-CRITICAL: Respond with ONLY the JSON object, nothing else.`;
+MANDATORY FIELDS:
+- overall_score: MUST be present
+- dimension_scores: MUST have all rubric dimensions with complete structure
+- strengths: MUST be an array (can be empty)
+- improvements: MUST be an array (can be empty)
+- missed_concepts: MUST be an array (can be empty if none)
+- rewrite_suggestion: MUST be a string (can be empty)
+- next_drill: MUST be a string (can be empty)
+- citations: MUST be an array (empty if no KB was used)
+
+CRITICAL: Respond with ONLY the JSON object, nothing else. Do not omit any fields.`;
 }
 
 export function buildUserPrompt(context: GradingContext): string {
