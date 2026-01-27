@@ -28,10 +28,10 @@ function createTestGradeResult(): GradeResult {
   return {
     overall_score: 0,
     dimension_scores: {
-      Clarity: { score: 0, rationale: "Test attempt - skipped" },
-      Depth: { score: 0, rationale: "Test attempt - skipped" },
-      Framework: { score: 0, rationale: "Test attempt - skipped" },
-      Insight: { score: 0, rationale: "Test attempt - skipped" },
+      Clarity: { score: 0, out_of: 25, rationale: "Test attempt - skipped", evidence_from_transcript: [], citations: [] },
+      Depth: { score: 0, out_of: 25, rationale: "Test attempt - skipped", evidence_from_transcript: [], citations: [] },
+      Framework: { score: 0, out_of: 25, rationale: "Test attempt - skipped", evidence_from_transcript: [], citations: [] },
+      Insight: { score: 0, out_of: 25, rationale: "Test attempt - skipped", evidence_from_transcript: [], citations: [] },
     },
     strengths: [],
     improvements: ["This appears to be a test attempt. Please provide a full answer (30+ seconds)."],

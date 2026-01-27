@@ -41,6 +41,7 @@ export async function getAttempt(
           rewrite_suggestion: feedback.rewriteSuggestion || "",
           next_drill: feedback.nextDrill || "",
           citations: (resultRow.citations as { chunk_id: string; title: string; page_start: number; page_end: number; }[]) || [],
+          is_test_attempt: feedback.isTestAttempt || false,
         };
       }
     }
