@@ -46,10 +46,11 @@ export const GradeResultSchema = z.object({
   dimension_scores: z.record(DimensionScoreSchema),
   strengths: z.array(z.string()),
   improvements: z.array(z.string()),
-  missed_concepts: z.array(z.string()).optional(),
+  missed_concepts: z.array(z.string()),
   rewrite_suggestion: z.string(),
   next_drill: z.string(),
-  citations: z.array(CitationSchema).optional(),
+  citations: z.array(CitationSchema),
+  is_test_attempt: z.boolean().default(false),
 });
 
 export type GradeResult = z.infer<typeof GradeResultSchema>;

@@ -16,11 +16,44 @@ import OpenAI from "openai";
 
 const MAX_RETRIES = 2;
 
+// Detect test attempts: < 30 seconds of audio = dummy data
+function isTestAttempt(transcript: string): boolean {
+  // Very short transcripts (likely < 30 seconds of speech) are test data
+  // Average speech is ~140 words/minute = ~2.3 words/second
+  // 30 seconds ≈ ~70 words minimum for real attempt
+  return transcript.trim().split(/\s+/).length < 70;
+}
+
+function createTestGradeResult(): GradeResult {
+  return {
+    overall_score: 0,
+    dimension_scores: {
+      Clarity: { score: 0, rationale: "Test attempt - skipped" },
+      Depth: { score: 0, rationale: "Test attempt - skipped" },
+      Framework: { score: 0, rationale: "Test attempt - skipped" },
+      Insight: { score: 0, rationale: "Test attempt - skipped" },
+    },
+    strengths: [],
+    improvements: ["This appears to be a test attempt. Please provide a full answer (30+ seconds)."],
+    missed_concepts: [],
+    rewrite_suggestion: "Record a complete response to your answer.",
+    next_drill: "Practice full responses",
+    citations: [],
+    is_test_attempt: true,
+  };
+}
+
 export async function gradeAttempt(
   context: GradingContext,
   sessionId?: string
 ): Promise<GradeResult> {
   try {
+    // Check if this is a test/throwaway attempt
+    if (isTestAttempt(context.transcript)) {
+      logger.info("Test attempt detected (< 30 seconds), returning stub grade", { sessionId });
+      return createTestGradeResult();
+    }
+
     const env = getEnv();
     const client = new OpenAI({
       apiKey: env.OPENAI_API_KEY,
