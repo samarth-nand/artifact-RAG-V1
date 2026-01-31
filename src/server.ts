@@ -4,6 +4,8 @@ import type { Request, Response } from "express-serve-static-core";
 import cors from "cors";
 import path from "path";
 import { getEnv } from "./shared/env";
+import { initializeDb } from "./db/index";
+import { logger } from "./shared/logger";
 
 import {
   postAttempts,
@@ -14,6 +16,13 @@ import {
   postSessionEnd,
   getSessionResultsHandler,
   postClarityGrade,
+  postInterviewSessions,
+  postInterviewSessionConnect,
+  postAssessmentSessions,
+  postAssessmentSessionSubmit,
+  waitForSessionResults,
+  getAdminExemplars,
+  postAdminExemplarVerify,
 } from "./api/index";
 
 import {
@@ -27,6 +36,12 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const env = getEnv();
 
+// Initialize database on startup
+initializeDb().catch((error) => {
+  logger.error("Failed to initialize database on startup", error);
+  // Continue anyway - some endpoints might still work
+});
+
 // CORS configuration for Next.js frontend
 const corsOrigins = env.CORS_ORIGINS === "*" 
   ? "*" 
@@ -36,7 +51,7 @@ app.use(cors({
   origin: corsOrigins,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-User-Id"],
 }));
 
 app.use(express.json({ limit: "50mb" }));
@@ -54,6 +69,13 @@ const getSessionHandlerTyped = getSessionHandler as unknown as LambdaHandler;
 const postSessionEndHandler = postSessionEnd as unknown as LambdaHandler;
 const getSessionResultsHandlerTyped = getSessionResultsHandler as unknown as LambdaHandler;
 const postClarityGradeHandler = postClarityGrade as unknown as LambdaHandler;
+const postInterviewSessionsHandler = postInterviewSessions as unknown as LambdaHandler;
+const postInterviewSessionConnectHandler = postInterviewSessionConnect as unknown as LambdaHandler;
+const postAssessmentSessionsHandler = postAssessmentSessions as unknown as LambdaHandler;
+const postAssessmentSessionSubmitHandler = postAssessmentSessionSubmit as unknown as LambdaHandler;
+const waitForSessionResultsHandler = waitForSessionResults as unknown as LambdaHandler;
+const getAdminExemplarsHandler = getAdminExemplars as unknown as LambdaHandler;
+const postAdminExemplarVerifyHandler = postAdminExemplarVerify as unknown as LambdaHandler;
 
 function normalizeHeaders(headers: Request["headers"]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -173,10 +195,59 @@ app.get("/sessions/:sessionId/results", async (req: Request, res: Response) => {
   sendResult(res, result);
 });
 
+app.get("/sessions/:sessionId/results/wait", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { sessionId: req.params.sessionId };
+  const result = await waitForSessionResultsHandler(event);
+  sendResult(res, result);
+});
+
 // Clarifying questions grading
 app.post("/clarity/grade", async (req: Request, res: Response) => {
   const event = expressToLambdaEvent(req);
   const result = await postClarityGradeHandler(event);
+  sendResult(res, result);
+});
+
+// Interview WebRTC handshake endpoints
+app.post("/interview/sessions", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  const result = await postInterviewSessionsHandler(event);
+  sendResult(res, result);
+});
+
+app.post("/interview/sessions/:sessionId/connect", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { sessionId: req.params.sessionId };
+  const result = await postInterviewSessionConnectHandler(event);
+  sendResult(res, result);
+});
+
+// Structure Sprint assessment endpoints
+app.post("/assessment_sessions", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  const result = await postAssessmentSessionsHandler(event);
+  sendResult(res, result);
+});
+
+app.post("/assessment_sessions/:sessionId/submit", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { sessionId: req.params.sessionId };
+  const result = await postAssessmentSessionSubmitHandler(event);
+  sendResult(res, result);
+});
+
+// Admin exemplar endpoints (learning system)
+app.get("/admin/exemplars", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.queryStringParameters = req.query as Record<string, string>;
+  const result = await getAdminExemplarsHandler(event);
+  sendResult(res, result);
+});
+
+app.post("/admin/exemplars/verify", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  const result = await postAdminExemplarVerifyHandler(event);
   sendResult(res, result);
 });
 
@@ -199,6 +270,7 @@ if (env.SERVE_FRONTEND === "true") {
       service: "artifact-grader-api", 
       version: "1.0.0",
       endpoints: [
+        "GET /sessions/:id/results/wait (long polling)",
         "POST /attempts",
         "POST /attempts/:id/process",
         "GET /attempts/:id",
@@ -207,6 +279,10 @@ if (env.SERVE_FRONTEND === "true") {
         "POST /sessions/:id/end",
         "GET /sessions/:id/results",
         "POST /clarity/grade",
+        "POST /interview/sessions",
+        "POST /interview/sessions/:id/connect",
+        "POST /assessment_sessions",
+        "POST /assessment_sessions/:id/submit",
         "GET /healthz"
       ]
     });

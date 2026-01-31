@@ -13,19 +13,24 @@ export interface GradingContext {
   transcript: string;
   retrievedChunks: RetrievedChunk[];
   rubricDimensions?: RubricDimension[];
+  exemplars?: Array<{
+    transcript: string;
+    overallScore: number;
+    dimensionScores: Record<string, number>;
+    keyStrengths: string[];
+  }>;
 }
 
 export function buildSystemPrompt(): string {
-  return `You are an expert interview grader for PM (Product Manager) interviews. Your task is to evaluate candidate responses based on provided book excerpts and a grading rubric.
+  return `You are a friendly, encouraging PM interview coach. Your job is to give real, honest feedback on responses - spot on with what they nailed and what they could improve. Keep the tone conversational and supportive, like you're mentoring a peer, not lecturing.
 
 CRITICAL RULES:
-1. ONLY use the provided book excerpts to inform your grading. You must not use external knowledge.
-2. For each major feedback point, cite the chunk ID, book title, and page range.
-3. Always cite evidence: "As mentioned in [Book Title] (pp. X-Y, chunk: abc123)..."
+1. If you run out of space and can't fit all feedback, START your response with: "Heads up - I had to cut some feedback due to space, sorry about that! Here's the most important stuff:" then continue with the most critical points.
+2. Use casual language where it feels natural ("You totally nailed this" vs "The response was technically adequate")
+3. In the rewrite_suggestion and next_drill, be direct and actionable - give them something they can actually practice.
 4. Base your scoring on the rubric dimensions provided.
 5. Return ONLY valid JSON matching the exact schema. No extra text before or after.
 6. If the transcript doesn't address certain rubric dimensions, score them lower with clear rationale.
-7. Identify missed concepts from the provided knowledge base that would strengthen the answer.
 
 TRANSCRIPT EVIDENCE REQUIREMENT (VERY IMPORTANT):
 - For EACH rubric dimension in dimension_scores, include:
@@ -35,17 +40,52 @@ TRANSCRIPT EVIDENCE REQUIREMENT (VERY IMPORTANT):
   "For <dimension>, you said '<verbatim quote>' which is (correct/partially correct/incorrect/missing) because ..."
 - If there is no relevant evidence for a dimension, set evidence_from_transcript to [] and explain what was missing in the rationale.
 
-You will output a JSON object with:
-- overall_score (0-100)
-- dimension_scores (object with scores for each rubric dimension)
-- strengths (array of key strengths)
-- improvements (array of actionable improvements)
-- missed_concepts (array of concepts from KB that were not addressed)
-- rewrite_suggestion (brief suggestion for the candidate to strengthen response)
-- next_drill (specific practice focus area)
-- citations (array of all chunks cited)
+EVIDENCE EXTRACTION RULES:
+1. Extract ONLY the most relevant 1-2 sentences that directly demonstrate the dimension being scored
+2. Each quote must be 10-50 words (not entire paragraphs)
+3. Choose quotes that show CLEAR examples of the skill/dimension (e.g., for "framework" dimension, quote the actual framework structure used)
+4. DO NOT extract generic statements - extract specific, distinctive content
+5. If the candidate didn't address a dimension, use [] for evidence and explain what's missing
+6. For low scores, extract the problematic quote that shows the weakness
 
-CRITICAL: Respond with ONLY the JSON object, nothing else.`;
+GOOD EVIDENCE EXAMPLES:
+✓ "I would focus on three key areas: content discovery, creator tools, and community building."
+✓ "Starting with the US population: approximately 330 million people."
+✗ "This is a good approach." (too generic)
+✗ [entire 200-word paragraph] (too long)
+
+You will output a JSON object with THESE EXACT FIELDS:
+{
+  "overall_score": <number 0-100>,
+  "dimension_scores": {
+    "<DimensionName>": {
+      "score": <number 0-100>,
+      "out_of": 25,
+      "rationale": "<string explaining the score>",
+      "evidence_from_transcript": ["<quote1>", "<quote2>"],
+      "citations": []
+    },
+    ... (repeat for each rubric dimension)
+  },
+  "strengths": ["<strength1>", "<strength2>"],
+  "improvements": ["<improvement1>", "<improvement2>"],
+  "missed_concepts": ["<concept1>", "<concept2>"],
+  "rewrite_suggestion": "<brief actionable suggestion>",
+  "next_drill": "<specific practice focus>",
+  "citations": []
+}
+
+MANDATORY FIELDS:
+- overall_score: MUST be present
+- dimension_scores: MUST have all rubric dimensions with complete structure
+- strengths: MUST be an array (can be empty)
+- improvements: MUST be an array (can be empty)
+- missed_concepts: MUST be an array (can be empty if none)
+- rewrite_suggestion: MUST be a string (can be empty)
+- next_drill: MUST be a string (can be empty)
+- citations: MUST be an array (empty if no KB was used)
+
+CRITICAL: Respond with ONLY the JSON object, nothing else. Do not omit any fields.`;
 }
 
 export function buildUserPrompt(context: GradingContext): string {
@@ -79,6 +119,22 @@ ${chunk.content}
     )
     .join("\n");
 
+  // Add exemplars section if available
+  let exemplarsSection = "";
+  if (context.exemplars && context.exemplars.length > 0) {
+    exemplarsSection = "\n\nHIGH-SCORING EXEMPLAR ANSWERS:\nLearn from these verified high-scoring responses:\n\n";
+    context.exemplars.forEach((exemplar, idx) => {
+      exemplarsSection += `EXEMPLAR ${idx + 1} (Score: ${exemplar.overallScore}/100):
+${exemplar.transcript}
+
+Why this scored well:
+${exemplar.keyStrengths.map(s => `- ${s}`).join('\n')}
+Dimension Scores: ${Object.entries(exemplar.dimensionScores).map(([k, v]) => `${k}: ${v}`).join(", ")}
+
+---\n\n`;
+    });
+  }
+
   return `Interview Question:
 "${context.questionText}"
 
@@ -86,12 +142,9 @@ Candidate's Transcript:
 ${context.transcript}
 
 Rubric Dimensions to Score:
-${rubricDimensions.map((d) => `- ${d.name} (${d.out_of}): ${d.description}`).join("\n")}
+${rubricDimensions.map((d) => `- ${d.name} (${d.out_of}): ${d.description}`).join("\n")}${exemplarsSection}
 
-Relevant Knowledge Base Excerpts:
-${retrievedContext}
-
-Please grade the candidate's response using ONLY the provided book excerpts as reference. Cite specific chunk IDs and page ranges for all major points. Return only the JSON object.`;
+Please grade the candidate's response. Use the exemplars to calibrate your grading - ensure similar quality receives similar scores. Return only the JSON object.`;
 }
 
 export function buildRepairPrompt(malformedJson: string): string {

@@ -131,11 +131,11 @@ export async function endSession(
       .map((t) => `${t.role === "user" ? "Candidate" : "Interviewer"}: ${t.transcript}`)
       .join("\n\n");
 
-    // Update session state to GRADING
+    // Update session state to ENDED (ready for grading)
     await db
       .update(interviewSessions)
       .set({
-        state: "GRADING",
+        state: "ENDED",
         finalTranscript,
         updatedAt: new Date(),
       })
@@ -143,7 +143,7 @@ export async function endSession(
 
     logger.info("Ended interview session", { sessionId, turnCount: turns.length });
 
-    return { sessionId, state: "GRADING" };
+    return { sessionId, state: "ENDED" };
   } catch (error) {
     logger.error("Failed to end session", error);
     throw error;
@@ -168,6 +168,33 @@ export async function getSessionResults(sessionId: string) {
       throw new Error(`Session ${sessionId} has no transcript yet`);
     }
 
+    // Validate transcript is not empty
+    const candidateTranscript = session.finalTranscript
+      .split('\n\n')
+      .filter(line => line.startsWith('Candidate:'))
+      .map(line => line.replace('Candidate: ', '').trim())
+      .join(' ');
+    
+    if (candidateTranscript.length < 10) {
+      logger.warn("Empty or minimal transcript provided", { sessionId, length: candidateTranscript.length });
+      return {
+        sessionId: session.id,
+        state: "DONE",
+        finalTranscript: session.finalTranscript,
+        result: {
+          overallScore: 0,
+          dimensionScores: {
+            clarity: 0,
+            structure: 0,
+            depth: 0,
+            communication: 0,
+          },
+          feedback: "No response provided. Please provide a substantive answer to the interview question.",
+          citations: [],
+        },
+      };
+    }
+
     // Grade the session
     const retrievedChunks = await retrieveChunks(session.finalTranscript);
     const gradeResult = await gradeAttempt({
@@ -175,7 +202,7 @@ export async function getSessionResults(sessionId: string) {
       questionText: session.questionText,
       transcript: session.finalTranscript,
       retrievedChunks,
-    });
+    }, sessionId);
 
     // Update session to DONE
     await db

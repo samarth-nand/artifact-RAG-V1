@@ -22,6 +22,12 @@ const envSchema = z.object({
   CORS_ORIGINS: z.string().default("*"),
   // Set to "false" to disable serving static frontend files (API-only mode)
   SERVE_FRONTEND: z.string().default("true"),
+  // Redis connection URL for ephemeral session secrets (Upstash/Redis Cloud)
+  REDIS_URL: z.string().url("Invalid REDIS_URL").optional(),
+  // Session secret TTL in seconds (default 90s)
+  REALTIME_SECRET_TTL_SECONDS: z.string().default("90"),
+  // RSA public key for encrypting client secrets (PEM format)
+  RSA_PUBLIC_KEY: z.string().optional(),
 });
 
 export type Environment = z.infer<typeof envSchema>;
