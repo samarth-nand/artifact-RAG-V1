@@ -66,7 +66,7 @@ class RealtimeClient {
               instructions: this.config.instructions,
               modalities: ['text', 'audio'],
               input_audio_transcription: {
-                model: 'gpt-4o-mini-transcribe',
+                model: 'gpt-4o-transcribe',
               },
             },
           });
@@ -93,7 +93,7 @@ class RealtimeClient {
       const offer = await this.peerConnection.createOffer({ offerToReceiveAudio: true });
       await this.peerConnection.setLocalDescription(offer);
 
-      const model = this.config.model || 'gpt-4o-realtime-preview-2024-12-17';
+      const model = this.config.model || 'gpt-realtime-2025-08-28';
       const url = `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`;
 
       const res = await fetch(url, {

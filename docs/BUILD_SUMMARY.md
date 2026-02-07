@@ -139,9 +139,9 @@ artifact-grader/
 | Database | Postgres (pgvector) | 14+ |
 | Vector Search | pgvector | 0.4+ |
 | Validation | Zod | 3.22+ |
-| LLM | OpenAI API | gpt-4o-mini |
-| Transcription | Whisper API | whisper-1 |
-| Embeddings | text-embedding-3-small | — |
+| LLM | OpenAI API | gpt-5.2 |
+| Transcription | Whisper API | gpt-4o-transcribe |
+| Embeddings | text-embedding-3-large | — |
 | PDF Processing | pdf-parse | 1.1+ |
 | Token Counting | js-tiktoken | 1.0+ |
 | AWS SDK | @aws-sdk | 3.540+ |

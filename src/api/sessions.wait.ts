@@ -197,6 +197,13 @@ async function gradeSessionAsync(
       return;
     }
 
+    // Get session for timing data
+    const [sessionData] = await db
+      .select()
+      .from(interviewSessions)
+      .where(eq(interviewSessions.id, sessionId as any))
+      .limit(1);
+
     // Retrieve relevant chunks
     const retrievedChunks = await retrieveChunks(transcript);
 
@@ -206,6 +213,8 @@ async function gradeSessionAsync(
       questionText,
       transcript,
       retrievedChunks,
+      sessionStartTime: sessionData?.createdAt,
+      sessionEndTime: sessionData?.updatedAt,
     });
 
     // Update session with results

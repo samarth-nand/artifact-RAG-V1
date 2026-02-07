@@ -32,7 +32,8 @@ export async function createRealtimeSession(
     // realtime API is in beta - use any casting for now
     // @ts-ignore
     const response = await client.beta.realtime.sessions.create({
-      model: "gpt-4o-realtime-preview-2024-12-17",
+      // SDK types lag behind newer realtime model names; pass through as string.
+      model: "gpt-realtime-2025-08-28" as any,
       modalities: ["text", "audio"],
       instructions: systemInstructions,
       voice: "marin",
@@ -41,7 +42,7 @@ export async function createRealtimeSession(
       // Enable transcription of the user's microphone input so we can show
       // what the candidate said in the live transcript and in results.
       input_audio_transcription: {
-        model: "gpt-4o-mini-transcribe",
+        model: "gpt-4o-transcribe",
       },
       // Session will auto-expire; client handles reconnection if needed
     });

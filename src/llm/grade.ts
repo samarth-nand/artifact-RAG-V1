@@ -16,12 +16,25 @@ import OpenAI from "openai";
 
 const MAX_RETRIES = 2;
 
-// Detect test attempts: < 30 seconds of audio = dummy data
-function isTestAttempt(transcript: string): boolean {
-  // Very short transcripts (likely < 30 seconds of speech) are test data
+// Detect test attempts: < 30 seconds of audio OR < 70 words = dummy data
+function isTestAttempt(transcript: string, sessionStartTime?: Date, sessionEndTime?: Date): boolean {
+  // Check word count: < 70 words = test attempt
   // Average speech is ~140 words/minute = ~2.3 words/second
   // 30 seconds ≈ ~70 words minimum for real attempt
-  return transcript.trim().split(/\s+/).length < 70;
+  const wordCount = transcript.trim().split(/\s+/).length;
+  if (wordCount < 70) {
+    return true;
+  }
+
+  // Check duration: < 30 seconds = test attempt
+  if (sessionStartTime && sessionEndTime) {
+    const durationSeconds = (sessionEndTime.getTime() - sessionStartTime.getTime()) / 1000;
+    if (durationSeconds < 30) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function createTestGradeResult(): GradeResult {
@@ -49,8 +62,8 @@ export async function gradeAttempt(
 ): Promise<GradeResult> {
   try {
     // Check if this is a test/throwaway attempt
-    if (isTestAttempt(context.transcript)) {
-      logger.info("Test attempt detected (< 30 seconds), returning stub grade", { sessionId });
+    if (isTestAttempt(context.transcript, context.sessionStartTime, context.sessionEndTime)) {
+      logger.info("Test attempt detected (< 30 seconds or < 70 words), returning stub grade", { sessionId });
       return createTestGradeResult();
     }
 

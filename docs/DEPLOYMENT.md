@@ -378,9 +378,9 @@ DATABASE_URL=postgresql://user:password@localhost:5432/artifact_grader
 
 # OpenAI
 OPENAI_API_KEY=sk-your-key-here
-OPENAI_TRANSCRIBE_MODEL=whisper-1
-OPENAI_EMBED_MODEL=text-embedding-3-small
-OPENAI_GRADE_MODEL=gpt-4o-mini
+OPENAI_TRANSCRIBE_MODEL=gpt-4o-transcribe
+OPENAI_EMBED_MODEL=text-embedding-3-large
+OPENAI_GRADE_MODEL=gpt-5.2
 
 # AWS (production only)
 AWS_REGION=us-east-1

@@ -4,7 +4,7 @@ import { logger } from "../shared/logger";
 import { defaultClarityScenario, ClarityScenario } from "../clarity/scenario";
 import { ClarityGradeRequestSchema, ClarityGradeResponseSchema, ClarityGradeResponse } from "../shared/zod";
 
-const CLARITY_MODEL = "gpt-4o-mini";
+const CLARITY_MODEL = "gpt-5.2";
 
 function buildSystemPrompt(): string {
   return `You are grading a set of candidate clarifying questions for a product design prompt.

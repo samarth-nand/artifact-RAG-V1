@@ -54,9 +54,9 @@ curl http://localhost:3000/attempts/{attemptId}
 ```env
 DATABASE_URL=postgresql://...
 OPENAI_API_KEY=sk-...
-OPENAI_TRANSCRIBE_MODEL=whisper-1
-OPENAI_EMBED_MODEL=text-embedding-3-small
-OPENAI_GRADE_MODEL=gpt-4o-mini
+OPENAI_TRANSCRIBE_MODEL=gpt-4o-transcribe
+OPENAI_EMBED_MODEL=text-embedding-3-large
+OPENAI_GRADE_MODEL=gpt-5.2
 AUDIO_BUCKET_NAME=artifact-grader-audio
 AWS_REGION=us-east-1
 LOG_LEVEL=info

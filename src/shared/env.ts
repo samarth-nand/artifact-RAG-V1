@@ -7,11 +7,11 @@ dotenv.config({ override: false });
 const envSchema = z.object({
   DATABASE_URL: z.string().url("Invalid DATABASE_URL"),
   OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
-  OPENAI_TRANSCRIBE_MODEL: z.string().default("whisper-1"),
-  OPENAI_EMBED_MODEL: z.string().default("text-embedding-3-small"),
-  OPENAI_GRADE_MODEL: z.string().default("gpt-4o-mini"),
-  OPENAI_CHAT_MODEL: z.string().default("gpt-4o-mini"),
-  OPENAI_TTS_MODEL: z.string().default("gpt-4o-mini-tts"),
+  OPENAI_TRANSCRIBE_MODEL: z.string().default("gpt-4o-transcribe"),
+  OPENAI_EMBED_MODEL: z.string().default("text-embedding-3-large"),
+  OPENAI_GRADE_MODEL: z.string().default("gpt-5.2"),
+  OPENAI_CHAT_MODEL: z.string().default("gpt-5.2"),
+  OPENAI_TTS_MODEL: z.string().default("gpt-4o-mini-tts-2025-12-15"),
   // Only required for the legacy audio-upload flow. For realtime interview + local/dev,
   // defaulting this avoids blocking non-AWS deployments.
   AUDIO_BUCKET_NAME: z.string().default("local-audio"),

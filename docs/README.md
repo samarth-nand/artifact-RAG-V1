@@ -11,7 +11,7 @@ A production-grade, AI-powered grading system for real-time speech-based PM inte
 - **ORM:** Drizzle ORM (with full migrations support)
 - **Vector Search:** pgvector (cosine similarity + MMR diversity)
 - **Realtime:** OpenAI Realtime API (speech-to-speech)
-- **LLM:** OpenAI (text-embedding-3-small for embeddings, configurable chat model for grading)
+- **LLM:** OpenAI (text-embedding-3-large for embeddings, configurable chat model for grading)
 - **PDF Ingestion:** Local CLI script with pdf-parse
 
 ## Architecture: Two Separate Flows
@@ -141,8 +141,8 @@ Edit `.env` with your credentials:
 ```env
 DATABASE_URL=postgresql://user:password@host/database
 OPENAI_API_KEY=sk-...
-OPENAI_EMBED_MODEL=text-embedding-3-small
-OPENAI_GRADE_MODEL=gpt-4o-mini
+OPENAI_EMBED_MODEL=text-embedding-3-large
+OPENAI_GRADE_MODEL=gpt-5.2
 AWS_REGION=us-east-1
 LOG_LEVEL=info
 ```
@@ -547,8 +547,8 @@ interface Citation {
 |----------|---------|-------------|
 | `DATABASE_URL` | — | Postgres connection string (required) |
 | `OPENAI_API_KEY` | — | OpenAI API key (required) |
-| `OPENAI_EMBED_MODEL` | `text-embedding-3-small` | Embedding model |
-| `OPENAI_GRADE_MODEL` | `gpt-4o-mini` | LLM for grading |
+| `OPENAI_EMBED_MODEL` | `text-embedding-3-large` | Embedding model |
+| `OPENAI_GRADE_MODEL` | `gpt-5.2` | LLM for grading |
 | `AWS_REGION` | `us-east-1` | AWS region |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `NODE_ENV` | `development` | Node environment |
@@ -680,7 +680,7 @@ npm run ingest -- --file "./books/Secrets of the Product Manager Interview.pdf" 
 
 - Verify `OPENAI_API_KEY` is valid
 - Check OpenAI quota/rate limits
-- Ensure model `gpt-4o-realtime-preview-2024-12-17` is available
+- Ensure model `gpt-realtime-2025-08-28` is available
 
 ### Grading Returns Invalid JSON
 

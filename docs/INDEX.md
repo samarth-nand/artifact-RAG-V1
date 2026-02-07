@@ -235,7 +235,7 @@ See troubleshooting section in README.md
 - TypeScript: 5.3+
 - SST: 3.0+
 - Postgres: 14+ (with pgvector)
-- OpenAI API: Latest (gpt-4o-mini)
+- OpenAI API: Latest (gpt-5.2)
 
 ## Next Steps
 
