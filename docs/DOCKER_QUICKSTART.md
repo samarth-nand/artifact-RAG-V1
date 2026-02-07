@@ -39,8 +39,8 @@ You must provide `OPENAI_API_KEY`.
 
 ```bash
 export OPENAI_API_KEY="sk-..."
-# Optional: grading model (defaults to gpt-4o-mini)
-export OPENAI_GRADE_MODEL="gpt-4o-mini"
+# Optional: grading model (defaults to gpt-5.2)
+export OPENAI_GRADE_MODEL="gpt-5.2"
 ```
 
 ### Option B: .env file (Compose will read it)
@@ -49,7 +49,7 @@ Create a file named `.env` in the repo root:
 
 ```env
 OPENAI_API_KEY=sk-...
-OPENAI_GRADE_MODEL=gpt-4o-mini
+OPENAI_GRADE_MODEL=gpt-5.2
 ```
 
 ---
@@ -87,7 +87,7 @@ If you already have a Postgres instance and only want the app container:
 ```bash
 docker run --rm -p 3000:3000 \
   -e OPENAI_API_KEY="$OPENAI_API_KEY" \
-  -e OPENAI_GRADE_MODEL="${OPENAI_GRADE_MODEL:-gpt-4o-mini}" \
+  -e OPENAI_GRADE_MODEL="${OPENAI_GRADE_MODEL:-gpt-5.2}" \
   -e DATABASE_URL="postgres://postgres:postgres@<host>:5432/artifact_grader" \
   artifact-grader:local
 ```

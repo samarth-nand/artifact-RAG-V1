@@ -43,7 +43,7 @@
      session_id: "uuid",           // your internal session ID
      realtime_session_id: "string", // OpenAI session ID (stored in DB)
      client_secret: "string",       // ephemeral token
-     model: "gpt-4o-realtime-preview"
+     model: "gpt-realtime-2025-08-28"
    }
    ↓
 5. Frontend:
@@ -305,8 +305,8 @@ Recommended for Vercel: **Neon** (good pooling, connection management)
 ### Backend (.env / Vercel env vars)
 ```
 OPENAI_API_KEY=sk-...
-OPENAI_GRADE_MODEL=gpt-4o-mini
-OPENAI_EMBED_MODEL=text-embedding-3-small
+OPENAI_GRADE_MODEL=gpt-5.2
+OPENAI_EMBED_MODEL=text-embedding-3-large
 DATABASE_URL=postgresql://user:password@host:port/database
 AUDIO_BUCKET_NAME=local-audio (or S3 bucket name)
 NODE_ENV=production

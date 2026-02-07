@@ -44,14 +44,25 @@ export const CitationSchema = z.object({
 export const GradeResultSchema = z.object({
   overall_score: z.number().min(0).max(100),
   dimension_scores: z.record(DimensionScoreSchema),
-  strengths: z.array(z.string()),
-  improvements: z.array(z.string()),
-  missed_concepts: z.array(z.string()),
-  rewrite_suggestion: z.string(),
-  next_drill: z.string(),
-  citations: z.array(CitationSchema),
+  strengths: z.array(z.string()).default([]),
+  improvements: z.array(z.string()).default([]),
+  missed_concepts: z.array(z.string()).default([]),
+  rewrite_suggestion: z.string().default(""),
+  next_drill: z.string().default(""),
+  citations: z.array(CitationSchema).default([]),
   is_test_attempt: z.boolean().default(false),
-});
+}).transform((data) => ({
+  // Ensure all fields are present and not undefined
+  overall_score: data.overall_score ?? 0,
+  dimension_scores: data.dimension_scores ?? {},
+  strengths: data.strengths ?? [],
+  improvements: data.improvements ?? [],
+  missed_concepts: data.missed_concepts ?? [],
+  rewrite_suggestion: data.rewrite_suggestion ?? "",
+  next_drill: data.next_drill ?? "",
+  citations: data.citations ?? [],
+  is_test_attempt: data.is_test_attempt ?? false,
+}));
 
 export type GradeResult = z.infer<typeof GradeResultSchema>;
 export type DimensionScore = z.infer<typeof DimensionScoreSchema>;

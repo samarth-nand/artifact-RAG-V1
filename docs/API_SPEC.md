@@ -49,7 +49,7 @@ Create a new interview session and get ephemeral OpenAI Realtime credentials.
   "session_id": "uuid",
   "realtime_session_id": "string",
   "client_secret": "string",
-  "model": "gpt-4o-realtime-preview",
+  "model": "gpt-realtime-2025-08-28",
   "expires_at": "2026-01-17T13:00:00.000Z"
 }
 ```
@@ -276,8 +276,8 @@ When deploying the backend, set these environment variables:
 ```bash
 DATABASE_URL=postgresql://user:password@host:port/database
 OPENAI_API_KEY=sk-...
-OPENAI_GRADE_MODEL=gpt-4o-mini
-OPENAI_EMBED_MODEL=text-embedding-3-small
+OPENAI_GRADE_MODEL=gpt-5.2
+OPENAI_EMBED_MODEL=text-embedding-3-large
 CORS_ORIGINS=https://yourapp.vercel.app,http://localhost:3000
 SERVE_FRONTEND=false  # Set to false for API-only mode
 NODE_ENV=production

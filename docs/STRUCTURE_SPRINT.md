@@ -275,7 +275,7 @@ Currently uses simple header-based auth:
 
 ## Performance Notes
 
-- **LLM grading:** ~2-3 seconds (gpt-4o-mini, temperature 0)
+- **LLM grading:** ~2-3 seconds (gpt-5.2, temperature 0)
 - **Embedding similarity:** ~500ms (10 bullets)
 - **Total latency:** ~3-4 seconds for submit
 - **Database:** All queries use indexes

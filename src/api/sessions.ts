@@ -202,6 +202,8 @@ export async function getSessionResults(sessionId: string) {
       questionText: session.questionText,
       transcript: session.finalTranscript,
       retrievedChunks,
+      sessionStartTime: session.createdAt,
+      sessionEndTime: session.updatedAt,
     }, sessionId);
 
     // Update session to DONE

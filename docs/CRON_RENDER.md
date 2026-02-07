@@ -21,7 +21,7 @@ Automate exemplar promotion and verification on Render.
 ## Environment Variables Required
 - `DATABASE_URL`
 - `OPENAI_API_KEY`
-- `OPENAI_EMBED_MODEL` (defaults to `text-embedding-3-small`)
+- `OPENAI_EMBED_MODEL` (defaults to `text-embedding-3-large`)
 - Optional: tune promotion thresholds via env vars shown above.
 
 ## Safety Tips

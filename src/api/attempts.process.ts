@@ -77,6 +77,8 @@ export async function processAttempt(
       questionText,
       transcript,
       retrievedChunks,
+      sessionStartTime: attempt.createdAt,
+      sessionEndTime: attempt.updatedAt,
     });
 
     // Store results

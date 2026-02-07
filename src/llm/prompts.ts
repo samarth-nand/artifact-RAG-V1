@@ -19,10 +19,12 @@ export interface GradingContext {
     dimensionScores: Record<string, number>;
     keyStrengths: string[];
   }>;
+  sessionStartTime?: Date;
+  sessionEndTime?: Date;
 }
 
 export function buildSystemPrompt(): string {
-  return `You are a friendly, encouraging PM interview coach. Your job is to give real, honest feedback on responses - spot on with what they nailed and what they could improve. Keep the tone conversational and supportive, like you're mentoring a peer, not lecturing.
+  return `You are a friendly, encouraging PM interviewer. Your job is to give real, honest feedback on responses - spot on with what they nailed and what they could improve. Keep the tone conversational and supportive, like you're mentoring a peer, not lecturing.
 
 CRITICAL RULES:
 1. If you run out of space and can't fit all feedback, START your response with: "Heads up - I had to cut some feedback due to space, sorry about that! Here's the most important stuff:" then continue with the most critical points.
