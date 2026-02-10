@@ -76,38 +76,44 @@ export async function loadAndValidateRole(
 ): Promise<{ role: RoleData | null; validation: ValidationResult }> {
   const db = getDb();
 
-  const rows: any[] = await db.execute(sql`
-    SELECT
-      r.id,
-      r.recruiter_id        AS "recruiterId",
-      r.jd_raw              AS "jdRaw",
-      r.title,
-      r.level,
-      r.team_context        AS "teamContext",
-      r.product_type        AS "productType",
-      r.tech_stack          AS "techStack",
-      r.ai_summary          AS "aiSummary",
-      r.ai_priorities       AS "aiPriorities",
-      r.constraints,
-      r.failure_reasons     AS "failureReasons",
-      r.decision_authority  AS "decisionAuthority",
-      r.stakeholder_pushback AS "stakeholderPushback",
-      r.hardest_relationship AS "hardestRelationship",
-      r.product_stability   AS "productStability",
-      r.daily_problems      AS "dailyProblems",
-      r.struggle_reasons    AS "struggleReasons",
-      r.unacceptable_mistake AS "unacceptableMistake",
-      r.success_criteria    AS "successCriteria",
-      r.pm_type             AS "pmType",
-      c.name                AS "companyName",
-      c.website             AS "companyWebsite",
-      c.industry            AS "companyIndustry",
-      c.description         AS "companyDescription"
-    FROM roles r
-    LEFT JOIN companies c ON r.company_id = c.id
-    WHERE r.id = ${roleId}
-    LIMIT 1
-  `);
+  let rows: any[];
+  try {
+    rows = await db.execute(sql`
+      SELECT
+        r.id,
+        r.recruiter_id        AS "recruiterId",
+        r.jd_raw              AS "jdRaw",
+        r.title,
+        r.level,
+        r.team_context        AS "teamContext",
+        r.product_type        AS "productType",
+        r.tech_stack          AS "techStack",
+        r.ai_summary          AS "aiSummary",
+        r.ai_priorities       AS "aiPriorities",
+        r.constraints,
+        r.failure_reasons     AS "failureReasons",
+        r.decision_authority  AS "decisionAuthority",
+        r.stakeholder_pushback AS "stakeholderPushback",
+        r.hardest_relationship AS "hardestRelationship",
+        r.product_stability   AS "productStability",
+        r.daily_problems      AS "dailyProblems",
+        r.struggle_reasons    AS "struggleReasons",
+        r.unacceptable_mistake AS "unacceptableMistake",
+        r.success_criteria    AS "successCriteria",
+        r.pm_type             AS "pmType",
+        c.name                AS "companyName",
+        c.website             AS "companyWebsite",
+        c.industry            AS "companyIndustry",
+        c.description         AS "companyDescription"
+      FROM roles r
+      LEFT JOIN companies c ON r.company_id = c.id
+      WHERE r.id = ${roleId}
+      LIMIT 1
+    `);
+  } catch (error) {
+    logger.error("Failed to query role", { roleId, error });
+    throw new Error("Failed to load role data");
+  }
 
   if (rows.length === 0) {
     return {

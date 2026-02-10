@@ -158,10 +158,6 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
       return createErrorResponse(500, "OPENAI_ERROR", "Failed to generate scenarios");
     }
 
-    return createErrorResponse(
-      500,
-      "INTERNAL_ERROR",
-      error instanceof Error ? error.message : "Failed to generate scenarios"
-    );
+    return createErrorResponse(500, "INTERNAL_ERROR", "Failed to generate scenarios");
   }
 };
