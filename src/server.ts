@@ -23,6 +23,7 @@ import {
   waitForSessionResults,
   getAdminExemplars,
   postAdminExemplarVerify,
+  postGenerateScenarios,
 } from "./api/index";
 
 import {
@@ -76,6 +77,7 @@ const postAssessmentSessionSubmitHandler = postAssessmentSessionSubmit as unknow
 const waitForSessionResultsHandler = waitForSessionResults as unknown as LambdaHandler;
 const getAdminExemplarsHandler = getAdminExemplars as unknown as LambdaHandler;
 const postAdminExemplarVerifyHandler = postAdminExemplarVerify as unknown as LambdaHandler;
+const postGenerateScenariosHandler = postGenerateScenarios as unknown as LambdaHandler;
 
 function normalizeHeaders(headers: Request["headers"]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -237,6 +239,14 @@ app.post("/assessment_sessions/:sessionId/submit", async (req: Request, res: Res
   sendResult(res, result);
 });
 
+// Recruiter scenario generation
+app.post("/recruiter/roles/:roleId/generate-scenarios", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { roleId: req.params.roleId };
+  const result = await postGenerateScenariosHandler(event);
+  sendResult(res, result);
+});
+
 // Admin exemplar endpoints (learning system)
 app.get("/admin/exemplars", async (req: Request, res: Response) => {
   const event = expressToLambdaEvent(req);
@@ -283,6 +293,7 @@ if (env.SERVE_FRONTEND === "true") {
         "POST /interview/sessions/:id/connect",
         "POST /assessment_sessions",
         "POST /assessment_sessions/:id/submit",
+        "POST /recruiter/roles/:id/generate-scenarios",
         "GET /healthz"
       ]
     });
