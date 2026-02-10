@@ -28,6 +28,9 @@ const envSchema = z.object({
   REALTIME_SECRET_TTL_SECONDS: z.string().default("90"),
   // RSA public key for encrypting client secrets (PEM format)
   RSA_PUBLIC_KEY: z.string().optional(),
+  // Turso (SQLite) database for recruiter roles/assessments
+  TURSO_DATABASE_URL: z.string().optional(),
+  TURSO_AUTH_TOKEN: z.string().optional(),
 });
 
 export type Environment = z.infer<typeof envSchema>;
