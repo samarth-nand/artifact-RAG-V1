@@ -1,11 +1,10 @@
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { randomUUID } from "crypto";
-import { sql } from "drizzle-orm";
 import { authenticateUser, AuthenticationError, AuthorizationError } from "../../shared/auth";
 import { logger } from "../../shared/logger";
 import { corsHeaders, handleCors } from "../cors";
 import { createErrorResponse } from "../errorResponses";
-import { getDb } from "../../db/index";
+import { getTursoClient } from "../../db/turso";
 import {
   GenerateScenariosRequestSchema,
   GenerateScenariosResponseSchema,
@@ -19,8 +18,8 @@ import { generateScenariosWithLLM } from "../../llm/generateScenarios";
  * POST /recruiter/roles/:roleId/generate-scenarios
  *
  * Generates interview scenarios for a role using LLM structured output.
- * Validates role completeness, generates scenarios, persists to assessments
- * table, and returns the result.
+ * Reads role data from Turso (SQLite), generates scenarios via OpenAI,
+ * persists results back to Turso assessments table.
  */
 export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => {
   if (event.requestContext.http.method === "OPTIONS") {
@@ -31,7 +30,7 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
     // 1. Authenticate
     const auth = authenticateUser(event);
 
-    // 2. Extract roleId
+    // 2. Extract roleId (integer in SQLite, passed as string in URL)
     const roleId = event.pathParameters?.roleId;
     if (!roleId) {
       return createErrorResponse(400, "VALIDATION_ERROR", "Missing roleId in path");
@@ -48,8 +47,8 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
       return createErrorResponse(404, "NOT_FOUND", `Role ${roleId} not found`);
     }
 
-    // 5. Authorization — recruiter must own this role
-    if (role.recruiterId !== auth.userId) {
+    // 5. Authorization — check both recruiter_id and created_by
+    if (role.recruiterId !== auth.userId && role.createdBy !== auth.userId) {
       return createErrorResponse(403, "FORBIDDEN", "You do not own this role");
     }
 
@@ -98,26 +97,35 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
       typeLabel: SCENARIO_TYPE_LABELS[s.type],
     }));
 
-    // 9. Persist to assessments table
-    const db = getDb();
-    const assessmentId = randomUUID();
+    // 9. Persist to Turso assessments table (SQLite — INTEGER autoincrement PK)
+    const turso = getTursoClient();
     const now = new Date().toISOString();
 
-    await db.execute(sql`
-      INSERT INTO assessments (
-        id, role_id, recruiter_id, questions,
-        model, prompt_tokens, completion_tokens,
-        status, created_at, updated_at
-      ) VALUES (
-        ${assessmentId}, ${roleId}, ${auth.userId}, ${JSON.stringify(scenarios)},
-        ${llmResult.model}, ${llmResult.promptTokens}, ${llmResult.completionTokens},
-        'draft', ${now}, ${now}
-      )
-    `);
+    const insertResult = await turso.execute({
+      sql: `
+        INSERT INTO assessments (
+          role_id, recruiter_id, questions,
+          model, prompt_tokens, completion_tokens,
+          status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?)
+      `,
+      args: [
+        roleId,
+        auth.userId,
+        JSON.stringify(scenarios),
+        llmResult.model,
+        llmResult.promptTokens,
+        llmResult.completionTokens,
+        now,
+        now,
+      ],
+    });
+
+    const assessmentId = insertResult.lastInsertRowid;
 
     logger.info("Scenarios generated and persisted", {
       roleId,
-      assessmentId,
+      assessmentId: String(assessmentId),
       scenarioCount: scenarios.length,
       model: llmResult.model,
     });
@@ -158,10 +166,6 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
       return createErrorResponse(500, "OPENAI_ERROR", "Failed to generate scenarios");
     }
 
-    return createErrorResponse(
-      500,
-      "INTERNAL_ERROR",
-      error instanceof Error ? error.message : "Failed to generate scenarios"
-    );
+    return createErrorResponse(500, "INTERNAL_ERROR", "Failed to generate scenarios");
   }
 };
