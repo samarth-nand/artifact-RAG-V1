@@ -67,7 +67,7 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
     if (!request.force) {
       const cached = await turso.execute({
         sql: `
-          SELECT questions, model, prompt_tokens, completion_tokens, created_at
+          SELECT id, questions, model, prompt_tokens, completion_tokens, created_at
           FROM assessments
           WHERE role_id = ? AND status IN ('draft', 'published')
           ORDER BY created_at DESC
@@ -89,6 +89,7 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
         return {
           statusCode: 200,
           body: JSON.stringify({
+            assessmentId: Number(row.id),
             scenarios,
             metadata: {
               roleId,
@@ -186,7 +187,7 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ ...response, cached: false }),
+      body: JSON.stringify({ ...response, assessmentId: Number(assessmentId), cached: false }),
       headers: corsHeaders,
     };
   } catch (error) {
