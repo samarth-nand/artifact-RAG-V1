@@ -61,7 +61,50 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
       );
     }
 
-    // 6. Determine scenario types (explicit or round-robin)
+    // 6. Check cache — return existing scenarios unless force=true
+    const turso = getTursoClient();
+
+    if (!request.force) {
+      const cached = await turso.execute({
+        sql: `
+          SELECT questions, model, prompt_tokens, completion_tokens, created_at
+          FROM assessments
+          WHERE role_id = ? AND status IN ('draft', 'published')
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+        args: [roleId],
+      });
+
+      if (cached.rows.length > 0) {
+        const row = cached.rows[0];
+        const scenarios = JSON.parse(row.questions as string);
+
+        logger.info("Returning cached scenarios", {
+          roleId,
+          scenarioCount: scenarios.length,
+          cachedAt: row.created_at,
+        });
+
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            scenarios,
+            metadata: {
+              roleId,
+              generatedAt: row.created_at as string,
+              model: row.model as string,
+              promptTokens: row.prompt_tokens as number,
+              completionTokens: row.completion_tokens as number,
+            },
+            cached: true,
+          }),
+          headers: corsHeaders,
+        };
+      }
+    }
+
+    // 7. Determine scenario types (explicit or round-robin)
     const count = request.count;
     let types: ScenarioType[];
 
@@ -80,7 +123,7 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
       }
     }
 
-    // 7. Generate scenarios via LLM
+    // 8. Generate scenarios via LLM
     logger.info("Generating scenarios", { roleId, count, types });
 
     const llmResult = await generateScenariosWithLLM({
@@ -90,15 +133,14 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
       additionalContext: request.additionalContext,
     });
 
-    // 8. Enrich with IDs and type labels
+    // 9. Enrich with IDs and type labels
     const scenarios = llmResult.output.scenarios.map((s) => ({
       ...s,
       id: randomUUID(),
       typeLabel: SCENARIO_TYPE_LABELS[s.type],
     }));
 
-    // 9. Persist to Turso assessments table (SQLite — INTEGER autoincrement PK)
-    const turso = getTursoClient();
+    // 10. Persist to Turso assessments table
     const now = new Date().toISOString();
 
     const insertResult = await turso.execute({
@@ -130,7 +172,7 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
       model: llmResult.model,
     });
 
-    // 10. Return response
+    // 11. Return response
     const response = GenerateScenariosResponseSchema.parse({
       scenarios,
       metadata: {
@@ -144,7 +186,7 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
 
     return {
       statusCode: 200,
-      body: JSON.stringify(response),
+      body: JSON.stringify({ ...response, cached: false }),
       headers: corsHeaders,
     };
   } catch (error) {

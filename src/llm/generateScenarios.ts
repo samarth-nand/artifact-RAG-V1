@@ -16,6 +16,15 @@ export interface GenerateScenariosParams {
   additionalContext?: string;
 }
 
+interface GenerateSingleScenarioParams {
+  role: RoleData;
+  type: ScenarioType;
+  index: number;
+  totalCount: number;
+  allTypes: ScenarioType[];
+  additionalContext?: string;
+}
+
 export interface GenerateScenariosLLMResult {
   output: LLMScenariosOutput;
   model: string;
@@ -59,13 +68,7 @@ GRADING CRITERIA REQUIREMENTS:
 Return ONLY the JSON matching the provided schema.`;
 }
 
-function buildUserPrompt(params: GenerateScenariosParams): string {
-  const { role, count, types, additionalContext } = params;
-
-  const typeDistribution = types
-    .map((t) => `- ${t} (${SCENARIO_TYPE_LABELS[t]})`)
-    .join("\n");
-
+function buildRoleContext(role: RoleData): string {
   let teamStr = "";
   if (role.teamContext) {
     const tc =
@@ -86,9 +89,7 @@ function buildUserPrompt(params: GenerateScenariosParams): string {
     ? role.aiPriorities.join("\n- ")
     : role.aiPriorities;
 
-  return `Generate exactly ${count} interview scenarios for this role.
-
-=== ROLE ===
+  return `=== ROLE ===
 Title: ${role.title}
 Level: ${role.level}
 PM Type: ${role.pmType}
@@ -120,7 +121,19 @@ Product Stability: ${role.productStability}
 Daily Problems: ${role.dailyProblems}
 People Struggle Because: ${role.struggleReasons}
 Unacceptable Mistake: ${role.unacceptableMistake}
-6-Month Success Criteria: ${role.successCriteria}
+6-Month Success Criteria: ${role.successCriteria}`;
+}
+
+function buildUserPrompt(params: GenerateScenariosParams): string {
+  const { role, count, types, additionalContext } = params;
+
+  const typeDistribution = types
+    .map((t) => `- ${t} (${SCENARIO_TYPE_LABELS[t]})`)
+    .join("\n");
+
+  return `Generate exactly ${count} interview scenarios for this role.
+
+${buildRoleContext(role)}
 
 === INSTRUCTIONS ===
 Generate ${count} scenarios with this type distribution:
@@ -130,6 +143,30 @@ ${additionalContext ? `Additional Context from Recruiter:\n${additionalContext}\
 Ground each scenario in the SPECIFIC company, product, and role context above.
 Use the failure reasons, daily problems, and stakeholder dynamics to create realistic scenarios.
 Rubric dimension weights must sum to approximately 1.0 within each scenario.
+Adjust passingThreshold based on seniority level.
+Each follow-up must have a clear purpose and expectedSignals.`;
+}
+
+function buildSingleScenarioUserPrompt(params: GenerateSingleScenarioParams): string {
+  const { role, type, index, totalCount, allTypes, additionalContext } = params;
+
+  const otherTypes = allTypes
+    .filter((_, i) => i !== index)
+    .map((t) => `${t} (${SCENARIO_TYPE_LABELS[t]})`)
+    .join(", ");
+
+  return `Generate exactly 1 interview scenario of type "${type}" (${SCENARIO_TYPE_LABELS[type]}) for this role.
+
+${buildRoleContext(role)}
+
+=== INSTRUCTIONS ===
+This is scenario ${index + 1} of ${totalCount}. The other scenarios cover: ${otherTypes}.
+Your scenario MUST test DIFFERENT competencies from what those types typically cover — ensure diversity.
+
+${additionalContext ? `Additional Context from Recruiter:\n${additionalContext}\n` : ""}
+Ground the scenario in the SPECIFIC company, product, and role context above.
+Use the failure reasons, daily problems, and stakeholder dynamics to create a realistic scenario.
+Rubric dimension weights must sum to approximately 1.0.
 Adjust passingThreshold based on seniority level.
 Each follow-up must have a clear purpose and expectedSignals.`;
 }
@@ -244,7 +281,31 @@ const SCENARIOS_JSON_SCHEMA = {
 };
 
 // ---------------------------------------------------------------------------
-// Main function
+// Single-scenario JSON schema (for parallel generation)
+// ---------------------------------------------------------------------------
+
+const SINGLE_SCENARIO_JSON_SCHEMA = {
+  name: "interview_scenario",
+  strict: true,
+  schema: {
+    type: "object" as const,
+    required: [
+      "type",
+      "title",
+      "constraints",
+      "mainQuestion",
+      "followUps",
+      "gradingCriteria",
+      "targetCompetencies",
+    ],
+    additionalProperties: false,
+    properties:
+      SCENARIOS_JSON_SCHEMA.schema.properties.scenarios.items.properties,
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Main function — parallel generation (fires N calls concurrently)
 // ---------------------------------------------------------------------------
 
 export async function generateScenariosWithLLM(
@@ -253,51 +314,71 @@ export async function generateScenariosWithLLM(
   const client = getOpenAIClient();
   const env = getEnv();
   const model = env.OPENAI_CHAT_MODEL;
-
   const systemPrompt = buildSystemPrompt();
-  const userPrompt = buildUserPrompt(params);
 
-  logger.info("Generating scenarios with LLM", {
+  logger.info("Generating scenarios in parallel", {
     roleId: params.role.id,
     count: params.count,
     types: params.types,
     model,
   });
 
-  const response = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: 0.8,
-    response_format: {
-      type: "json_schema",
-      json_schema: SCENARIOS_JSON_SCHEMA,
-    },
+  const calls = params.types.map((type, index) => {
+    const userPrompt = buildSingleScenarioUserPrompt({
+      role: params.role,
+      type,
+      index,
+      totalCount: params.count,
+      allTypes: params.types,
+      additionalContext: params.additionalContext,
+    });
+
+    return client.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.8,
+      response_format: {
+        type: "json_schema",
+        json_schema: SINGLE_SCENARIO_JSON_SCHEMA,
+      },
+    });
   });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) {
-    throw new Error("Empty response from scenario generation model");
+  const results = await Promise.all(calls);
+
+  const scenarios: LLMScenariosOutput["scenarios"][number][] = [];
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+
+  for (const response of results) {
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error("Empty response from scenario generation model");
+    }
+
+    const parsed = JSON.parse(content);
+    scenarios.push(parsed);
+
+    totalPromptTokens += response.usage?.prompt_tokens ?? 0;
+    totalCompletionTokens += response.usage?.completion_tokens ?? 0;
   }
 
-  const parsed = JSON.parse(content);
-  const validated = LLMScenariosOutputSchema.parse(parsed);
+  const validated = LLMScenariosOutputSchema.parse({ scenarios });
 
-  const usage = response.usage;
-
-  logger.info("Scenarios generated successfully", {
+  logger.info("Scenarios generated successfully (parallel)", {
     roleId: params.role.id,
     scenarioCount: validated.scenarios.length,
-    promptTokens: usage?.prompt_tokens,
-    completionTokens: usage?.completion_tokens,
+    promptTokens: totalPromptTokens,
+    completionTokens: totalCompletionTokens,
   });
 
   return {
     output: validated,
     model,
-    promptTokens: usage?.prompt_tokens ?? 0,
-    completionTokens: usage?.completion_tokens ?? 0,
+    promptTokens: totalPromptTokens,
+    completionTokens: totalCompletionTokens,
   };
 }

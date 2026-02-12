@@ -24,6 +24,10 @@ import {
   getAdminExemplars,
   postAdminExemplarVerify,
   postGenerateScenarios,
+  postAssessmentInvite,
+  getAssessmentLeaderboard,
+  getCandidateVerify,
+  postCandidateSessionSubmit,
 } from "./api/index";
 
 import {
@@ -78,6 +82,10 @@ const waitForSessionResultsHandler = waitForSessionResults as unknown as LambdaH
 const getAdminExemplarsHandler = getAdminExemplars as unknown as LambdaHandler;
 const postAdminExemplarVerifyHandler = postAdminExemplarVerify as unknown as LambdaHandler;
 const postGenerateScenariosHandler = postGenerateScenarios as unknown as LambdaHandler;
+const postAssessmentInviteHandler = postAssessmentInvite as unknown as LambdaHandler;
+const getAssessmentLeaderboardHandler = getAssessmentLeaderboard as unknown as LambdaHandler;
+const getCandidateVerifyHandler = getCandidateVerify as unknown as LambdaHandler;
+const postCandidateSessionSubmitHandler = postCandidateSessionSubmit as unknown as LambdaHandler;
 
 function normalizeHeaders(headers: Request["headers"]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -247,6 +255,37 @@ app.post("/recruiter/roles/:roleId/generate-scenarios", async (req: Request, res
   sendResult(res, result);
 });
 
+// Recruiter assessment invites
+app.post("/recruiter/assessments/:assessmentId/invite", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { assessmentId: req.params.assessmentId };
+  const result = await postAssessmentInviteHandler(event);
+  sendResult(res, result);
+});
+
+// Recruiter leaderboard
+app.get("/recruiter/assessments/:assessmentId/leaderboard", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { assessmentId: req.params.assessmentId };
+  const result = await getAssessmentLeaderboardHandler(event);
+  sendResult(res, result);
+});
+
+// Candidate verify invite token (no auth required)
+app.get("/candidate/verify/:token", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { token: req.params.token };
+  const result = await getCandidateVerifyHandler(event);
+  sendResult(res, result);
+});
+
+// Candidate submit transcript + get score (token-based auth)
+app.post("/candidate/sessions/submit", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  const result = await postCandidateSessionSubmitHandler(event);
+  sendResult(res, result);
+});
+
 // Admin exemplar endpoints (learning system)
 app.get("/admin/exemplars", async (req: Request, res: Response) => {
   const event = expressToLambdaEvent(req);
@@ -294,6 +333,10 @@ if (env.SERVE_FRONTEND === "true") {
         "POST /assessment_sessions",
         "POST /assessment_sessions/:id/submit",
         "POST /recruiter/roles/:id/generate-scenarios",
+        "POST /recruiter/assessments/:id/invite",
+        "GET /recruiter/assessments/:id/leaderboard",
+        "GET /candidate/verify/:token",
+        "POST /candidate/sessions/submit",
         "GET /healthz"
       ]
     });
