@@ -27,6 +27,7 @@ export const GenerateScenariosRequestSchema = z.object({
   count: z.number().int().min(1).max(10).default(4),
   types: z.array(ScenarioTypeEnum).min(1).optional(),
   additionalContext: z.string().max(2000).optional(),
+  force: z.boolean().default(false),
 });
 
 export type GenerateScenariosRequest = z.infer<typeof GenerateScenariosRequestSchema>;

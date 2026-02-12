@@ -17,6 +17,10 @@ export { submitAssessment as postAssessmentSessionSubmit } from "./assessment/se
 export { waitForSessionResults } from "./sessions.wait";
 export { getAdminExemplars, postAdminExemplarVerify } from "./exemplars.admin";
 export { postGenerateScenarios } from "./recruiter/roles.generateScenarios";
+export { postAssessmentInvite } from "./recruiter/assessments.invite";
+export { getAssessmentLeaderboard } from "./recruiter/assessments.leaderboard";
+export { getCandidateVerify } from "./candidate/verify";
+export { postCandidateSessionSubmit } from "./candidate/sessions.submit";
 
 // Initialize DB and auto-ingestion once
 let dbInitialized = false;
