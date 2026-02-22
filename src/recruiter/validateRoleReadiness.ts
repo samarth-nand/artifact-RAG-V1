@@ -14,35 +14,35 @@ export interface RoleData {
   createdBy: string | null;
 
   // Step 1 — JD
-  jdRaw: string;
-  title: string;
-  level: string;
+  jdRaw: string | null;
+  title: string | null;
+  level: string | null;
 
   // Step 2 — Team & Company
-  teamContext: { teamName: string; isNewProduct: boolean } | string;
-  productType: string;
+  teamContext: { teamName: string; isNewProduct: boolean } | string | null;
+  productType: string | null;
   techStack: string[];
-  companyName: string;
+  companyName: string | null;
   companyWebsite: string | null;
-  companyIndustry: string;
+  companyIndustry: string | null;
   companyDescription: string | null;
 
   // Step 3 — AI Understanding
-  aiSummary: string;
+  aiSummary: string | null;
   aiPriorities: string[];
 
   // Step 4 — Follow-ups
-  constraints: string;
-  failureReasons: string;
-  decisionAuthority: string;
-  stakeholderPushback: string;
-  hardestRelationship: string;
-  productStability: string;
-  dailyProblems: string;
-  struggleReasons: string;
-  unacceptableMistake: string;
-  successCriteria: string;
-  pmType: string;
+  constraints: string | null;
+  failureReasons: string | null;
+  decisionAuthority: string | null;
+  stakeholderPushback: string | null;
+  hardestRelationship: string | null;
+  productStability: string | null;
+  dailyProblems: string | null;
+  struggleReasons: string | null;
+  unacceptableMistake: string | null;
+  successCriteria: string | null;
+  pmType: string | null;
 }
 
 const STEP_REQUIRED_FIELDS: Record<string, (keyof RoleData)[]> = {

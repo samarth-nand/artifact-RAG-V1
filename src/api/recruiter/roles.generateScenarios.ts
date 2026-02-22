@@ -52,13 +52,13 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
       return createErrorResponse(403, "FORBIDDEN", "You do not own this role");
     }
 
+    // Log missing fields but don't block — generate with whatever context is available
     if (!validation.valid) {
-      return createErrorResponse(
-        400,
-        "VALIDATION_ERROR",
-        `Role is not ready for scenario generation. Missing: ${validation.missingSteps.join(", ")}`,
-        { missingSteps: validation.missingSteps, missingFields: validation.missingFields }
-      );
+      logger.info("Generating scenarios with incomplete role data", {
+        roleId,
+        missingSteps: validation.missingSteps,
+        missingFields: validation.missingFields,
+      });
     }
 
     // 6. Check cache — return existing scenarios unless force=true
