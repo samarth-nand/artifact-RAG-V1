@@ -69,59 +69,96 @@ Return ONLY the JSON matching the provided schema.`;
 }
 
 function buildRoleContext(role: RoleData): string {
+  // Helper to omit empty/null/undefined fields from the prompt
+  const line = (label: string, value: unknown): string => {
+    if (value === null || value === undefined || value === "") return "";
+    return `${label}: ${value}`;
+  };
+
   let teamStr = "";
   if (role.teamContext) {
-    const tc =
-      typeof role.teamContext === "string"
-        ? JSON.parse(role.teamContext)
-        : role.teamContext;
-    teamStr = `Team: ${tc.teamName || "Unknown"}, ${tc.isNewProduct ? "building 0→1" : "scaling existing product"}`;
+    try {
+      const tc =
+        typeof role.teamContext === "string"
+          ? JSON.parse(role.teamContext)
+          : role.teamContext;
+      teamStr = `Team: ${tc.teamName || "Unknown"}, ${tc.isNewProduct ? "building 0→1" : "scaling existing product"}`;
+    } catch {
+      // malformed JSON — skip
+    }
   }
 
   const techStackStr =
     Array.isArray(role.techStack) && role.techStack.length > 0
       ? role.techStack.join(", ")
-      : typeof role.techStack === "string"
+      : typeof role.techStack === "string" && role.techStack
         ? role.techStack
         : "";
 
-  const prioritiesStr = Array.isArray(role.aiPriorities)
-    ? role.aiPriorities.join("\n- ")
-    : role.aiPriorities;
+  const prioritiesStr =
+    Array.isArray(role.aiPriorities) && role.aiPriorities.length > 0
+      ? role.aiPriorities.join("\n- ")
+      : typeof role.aiPriorities === "string" && role.aiPriorities
+        ? role.aiPriorities
+        : "";
 
-  return `=== ROLE ===
-Title: ${role.title}
-Level: ${role.level}
-PM Type: ${role.pmType}
+  // Build sections, only including non-empty ones
+  const sections: string[] = [];
 
-=== COMPANY ===
-Company: ${role.companyName} (${role.companyIndustry})
-${role.companyDescription ? `Description: ${role.companyDescription}` : ""}
-${role.companyWebsite ? `Website: ${role.companyWebsite}` : ""}
-Product Type: ${role.productType}
-${teamStr}
-${techStackStr ? `Tech Stack: ${techStackStr}` : ""}
+  // Role basics — title is the minimum required context
+  const roleLines = [
+    line("Title", role.title),
+    line("Level", role.level),
+    line("PM Type", role.pmType),
+  ].filter(Boolean);
+  if (roleLines.length > 0) {
+    sections.push(`=== ROLE ===\n${roleLines.join("\n")}`);
+  }
 
-=== JOB DESCRIPTION ===
-${role.jdRaw}
+  // Company
+  const companyLines = [
+    role.companyName ? `Company: ${role.companyName}${role.companyIndustry ? ` (${role.companyIndustry})` : ""}` : "",
+    role.companyDescription ? `Description: ${role.companyDescription}` : "",
+    role.companyWebsite ? `Website: ${role.companyWebsite}` : "",
+    line("Product Type", role.productType),
+    teamStr,
+    techStackStr ? `Tech Stack: ${techStackStr}` : "",
+  ].filter(Boolean);
+  if (companyLines.length > 0) {
+    sections.push(`=== COMPANY ===\n${companyLines.join("\n")}`);
+  }
 
-=== AI SUMMARY & PRIORITIES ===
-Summary: ${role.aiSummary}
+  // JD
+  if (role.jdRaw) {
+    sections.push(`=== JOB DESCRIPTION ===\n${role.jdRaw}`);
+  }
 
-Priorities:
-- ${prioritiesStr}
+  // AI summary
+  const aiLines: string[] = [];
+  if (role.aiSummary) aiLines.push(`Summary: ${role.aiSummary}`);
+  if (prioritiesStr) aiLines.push(`Priorities:\n- ${prioritiesStr}`);
+  if (aiLines.length > 0) {
+    sections.push(`=== AI SUMMARY & PRIORITIES ===\n${aiLines.join("\n\n")}`);
+  }
 
-=== REAL TEAM DYNAMICS (from hiring manager) ===
-Biggest Constraints: ${role.constraints}
-Plans Fail Because: ${role.failureReasons}
-Decision Authority: ${role.decisionAuthority}
-Stakeholder Pushback: ${role.stakeholderPushback}
-Hardest Relationship: ${role.hardestRelationship}
-Product Stability: ${role.productStability}
-Daily Problems: ${role.dailyProblems}
-People Struggle Because: ${role.struggleReasons}
-Unacceptable Mistake: ${role.unacceptableMistake}
-6-Month Success Criteria: ${role.successCriteria}`;
+  // Team dynamics (Step 4) — only include fields that exist
+  const dynamicsLines = [
+    line("Biggest Constraints", role.constraints),
+    line("Plans Fail Because", role.failureReasons),
+    line("Decision Authority", role.decisionAuthority),
+    line("Stakeholder Pushback", role.stakeholderPushback),
+    line("Hardest Relationship", role.hardestRelationship),
+    line("Product Stability", role.productStability),
+    line("Daily Problems", role.dailyProblems),
+    line("People Struggle Because", role.struggleReasons),
+    line("Unacceptable Mistake", role.unacceptableMistake),
+    line("6-Month Success Criteria", role.successCriteria),
+  ].filter(Boolean);
+  if (dynamicsLines.length > 0) {
+    sections.push(`=== REAL TEAM DYNAMICS (from hiring manager) ===\n${dynamicsLines.join("\n")}`);
+  }
+
+  return sections.join("\n\n");
 }
 
 function buildUserPrompt(params: GenerateScenariosParams): string {
