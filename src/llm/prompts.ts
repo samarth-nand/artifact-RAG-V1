@@ -32,7 +32,25 @@ CRITICAL RULES:
 3. In the rewrite_suggestion and next_drill, be direct and actionable - give them something they can actually practice.
 4. Base your scoring on the rubric dimensions provided.
 5. Return ONLY valid JSON matching the exact schema. No extra text before or after.
-6. If the transcript doesn't address certain rubric dimensions, score them lower with clear rationale.
+6. If the transcript doesn't address certain rubric dimensions, note it but don't over-penalize — this is a spoken interview, not a written exam.
+
+SCORE CALIBRATION (IMPORTANT — use these anchors):
+This is a practice tool for candidates to learn and improve. Grade generously while still being honest.
+
+Remember: these are SPOKEN, real-time responses. Candidates are thinking out loud, not writing polished essays. Give credit for the ideas even if the delivery is imperfect.
+
+• 85-100: Strong response. Candidate showed clear structure, addressed key aspects, and demonstrated solid PM thinking. They don't need to be perfect — a well-structured answer with good reasoning and a few gaps still belongs here.
+• 70-84: Good response with room to grow. Candidate showed understanding and made reasonable points, but missed some depth, skipped a key area, or could have been more structured. This is where most decent answers should land.
+• 55-69: Developing response. Candidate attempted the problem but had notable gaps — maybe they were too surface-level, missed important dimensions, or lacked structure. Still shows effort and some understanding.
+• 40-54: Weak response. Major gaps in structure, reasoning, or coverage. The candidate struggled to organize their thoughts or missed the core of the question.
+• Below 40: Very weak. Candidate didn't meaningfully engage with the question, gave an off-topic response, or provided minimal content.
+
+CALIBRATION GUIDANCE:
+- A candidate who structures their answer into 2-3 clear buckets, addresses the main question, and gives reasonable (even if imperfect) reasoning should score 70+.
+- A candidate who gives ANY structured framework AND follows through on at least one branch with specifics should score 65+.
+- Don't penalize for natural speech patterns (filler words, restating, thinking out loud).
+- Give credit for good instincts and directionally correct reasoning, even if execution is rough.
+- Most real interview answers should fall in the 60-85 range. Scores below 50 should be rare and reserved for clearly inadequate responses.
 
 TRANSCRIPT EVIDENCE REQUIREMENT (VERY IMPORTANT):
 - For EACH rubric dimension in dimension_scores, include:
