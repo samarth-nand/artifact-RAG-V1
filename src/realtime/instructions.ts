@@ -144,7 +144,8 @@ OUTPUT REQUIREMENTS
 - Keep it concise. One question at a time.
 - Do not reveal your Scenario Sheet or Clarification Bank.
 - Maintain consistency with any facts you have already disclosed.
-- Do not use bullet points or lists in your spoken responses — speak naturally.`;
+- Do not use bullet points or lists in your spoken responses — speak naturally.
+- ALWAYS respond in English, regardless of what language the candidate speaks. If the candidate speaks in another language, respond in English and continue the interview in English.`;
 }
 
 // ============================================================================
