@@ -81,6 +81,7 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
         const scenarios = JSON.parse(row.questions as string);
 
         logger.info("Returning cached scenarios", {
+          userId: auth.userId,
           roleId,
           scenarioCount: scenarios.length,
           cachedAt: row.created_at,
@@ -125,7 +126,7 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
     }
 
     // 8. Generate scenarios via LLM
-    logger.info("Generating scenarios", { roleId, count, types });
+    logger.info("Generating scenarios", { userId: auth.userId, roleId, count, types });
 
     const llmResult = await generateScenariosWithLLM({
       role,
@@ -167,6 +168,7 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
     const assessmentId = insertResult.lastInsertRowid;
 
     logger.info("Scenarios generated and persisted", {
+      userId: auth.userId,
       roleId,
       assessmentId: String(assessmentId),
       scenarioCount: scenarios.length,
