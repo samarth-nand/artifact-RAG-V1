@@ -21,6 +21,7 @@ export { postAssessmentInvite } from "./recruiter/assessments.invite";
 export { getAssessmentLeaderboard } from "./recruiter/assessments.leaderboard";
 export { getCandidateVerify } from "./candidate/verify";
 export { postCandidateSessionSubmit } from "./candidate/sessions.submit";
+export { postSessionIssueTree } from "./sessions.issueTree";
 
 // Initialize DB and auto-ingestion once
 let dbInitialized = false;

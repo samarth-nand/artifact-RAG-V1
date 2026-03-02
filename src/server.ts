@@ -28,6 +28,7 @@ import {
   getAssessmentLeaderboard,
   getCandidateVerify,
   postCandidateSessionSubmit,
+  postSessionIssueTree,
 } from "./api/index";
 
 import {
@@ -86,6 +87,7 @@ const postAssessmentInviteHandler = postAssessmentInvite as unknown as LambdaHan
 const getAssessmentLeaderboardHandler = getAssessmentLeaderboard as unknown as LambdaHandler;
 const getCandidateVerifyHandler = getCandidateVerify as unknown as LambdaHandler;
 const postCandidateSessionSubmitHandler = postCandidateSessionSubmit as unknown as LambdaHandler;
+const postSessionIssueTreeHandler = postSessionIssueTree as unknown as LambdaHandler;
 
 function normalizeHeaders(headers: Request["headers"]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -212,6 +214,13 @@ app.get("/sessions/:sessionId/results/wait", async (req: Request, res: Response)
   sendResult(res, result);
 });
 
+app.post("/sessions/:sessionId/issue-tree", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { sessionId: req.params.sessionId };
+  const result = await postSessionIssueTreeHandler(event);
+  sendResult(res, result);
+});
+
 // Clarifying questions grading
 app.post("/clarity/grade", async (req: Request, res: Response) => {
   const event = expressToLambdaEvent(req);
@@ -327,6 +336,7 @@ if (env.SERVE_FRONTEND === "true") {
         "GET /sessions/:id",
         "POST /sessions/:id/end",
         "GET /sessions/:id/results",
+        "POST /sessions/:id/issue-tree",
         "POST /clarity/grade",
         "POST /interview/sessions",
         "POST /interview/sessions/:id/connect",

@@ -94,6 +94,8 @@ export const interviewSessions = pgTable(
     realtimeSessionId: text("realtime_session_id"), // OpenAI Realtime session ID
     finalTranscript: text("final_transcript"),
     gradingResult: jsonb("grading_result"), // Cached grading result
+    issueTreeJson: jsonb("issue_tree_json"), // LLM-generated issue tree decomposition
+    issueTreeGeneratedAt: timestamp("issue_tree_generated_at"),
     error: text("error"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

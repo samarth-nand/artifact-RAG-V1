@@ -68,6 +68,37 @@ export type GradeResult = z.infer<typeof GradeResultSchema>;
 export type DimensionScore = z.infer<typeof DimensionScoreSchema>;
 export type Citation = z.infer<typeof CitationSchema>;
 
+// Issue Tree Schemas
+export const IssueTreeNodeSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  parentId: z.string().nullable(),
+  status: z.enum(["addressed", "partial", "named"]),
+  depth_note: z.string(),
+  evidence: z.string(),
+});
+
+export const IssueTreeSummarySchema = z.object({
+  total_branches: z.number().int(),
+  addressed_count: z.number().int(),
+  partial_count: z.number().int(),
+  named_only_count: z.number().int(),
+  max_depth: z.number().int(),
+  coverage_score: z.number().min(0).max(100),
+  strongest_branch: z.string(),
+  weakest_gap: z.string(),
+  one_line_verdict: z.string(),
+});
+
+export const IssueTreeResultSchema = z.object({
+  nodes: z.array(IssueTreeNodeSchema),
+  summary: IssueTreeSummarySchema,
+});
+
+export type IssueTreeNode = z.infer<typeof IssueTreeNodeSchema>;
+export type IssueTreeSummary = z.infer<typeof IssueTreeSummarySchema>;
+export type IssueTreeResult = z.infer<typeof IssueTreeResultSchema>;
+
 // API Request/Response Schemas
 export const CreateAttemptRequestSchema = z.object({
   userId: z.string().min(1),

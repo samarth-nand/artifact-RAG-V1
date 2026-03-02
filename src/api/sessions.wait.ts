@@ -6,6 +6,7 @@ import { logger } from "../shared/logger.js";
 import { corsHeaders } from "./cors.js";
 import { retrieveChunks } from "../kb/retrieve.js";
 import { gradeAttempt } from "../llm/grade.js";
+import { generateIssueTree } from "../llm/issueTree.js";
 
 const POLL_INTERVAL_MS = 1000; // Check every 1 second
 const MAX_WAIT_MS = 5 * 60 * 1000; // 5 minutes timeout
@@ -229,6 +230,10 @@ async function gradeSessionAsync(
 
     logger.info("Async grading completed", { sessionId });
 
+    // Fire-and-forget issue tree generation — non-blocking
+    generateIssueTreeForSession(sessionId, transcript, questionText)
+      .catch((err: unknown) => logger.warn("Issue tree auto-generation failed", { sessionId, error: err instanceof Error ? err.message : String(err) }));
+
   } catch (error) {
     logger.error("Async grading failed", { sessionId, error });
 
@@ -243,6 +248,32 @@ async function gradeSessionAsync(
       logger.error("Failed to mark session as failed", { sessionId, updateError });
     }
   }
+}
+
+async function generateIssueTreeForSession(
+  sessionId: string,
+  transcript: string,
+  questionText: string
+): Promise<void> {
+  // Skip if transcript is too short
+  const wordCount = transcript.split(/\s+/).length;
+  if (wordCount < 100) {
+    logger.info("Skipping issue tree — transcript too short", { sessionId, wordCount });
+    return;
+  }
+
+  const issueTree = await generateIssueTree(transcript, questionText);
+
+  const db = getDb();
+  await db
+    .update(interviewSessions)
+    .set({
+      issueTreeJson: issueTree as any,
+      issueTreeGeneratedAt: new Date(),
+    })
+    .where(eq(interviewSessions.id, sessionId as any));
+
+  logger.info("Issue tree auto-generated", { sessionId, nodeCount: issueTree.nodes.length });
 }
 
 function sleep(ms: number): Promise<void> {

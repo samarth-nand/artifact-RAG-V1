@@ -52,6 +52,7 @@ export async function createSession(request: typeof CreateSessionRequestSchema._
       sessionId,
       userId: request.userId,
       questionId: request.questionId,
+      mode: request.mode,
     });
 
     return {
