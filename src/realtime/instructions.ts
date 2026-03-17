@@ -11,6 +11,15 @@
 
 export type InterviewMode = "pm" | "consulting";
 
+export interface ScenarioContext {
+  roleTitle: string;
+  companyName?: string;
+  scenarioType?: string;
+  scenarioTitle?: string;
+  constraints?: string[];
+  followUps?: Array<{ question: string; purpose: string }>;
+}
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -18,16 +27,19 @@ export type InterviewMode = "pm" | "consulting";
 /**
  * Main entry point — builds instructions for the given interview mode.
  * Falls back to "pm" if mode is unrecognized.
+ * When scenarioContext is provided, the interviewer uses the role/company/constraints
+ * instead of fabricating its own scenario.
  */
 export function buildRealtimeInstructions(
   questionId: string,
   questionText: string,
-  mode: InterviewMode = "pm"
+  mode: InterviewMode = "pm",
+  scenarioContext?: ScenarioContext
 ): string {
   if (mode === "consulting") {
-    return buildConsultingInstructions(questionText);
+    return buildConsultingInstructions(questionText, scenarioContext);
   }
-  return buildPMInstructions(questionText);
+  return buildPMInstructions(questionText, scenarioContext);
 }
 
 // ============================================================================
@@ -148,16 +160,65 @@ OUTPUT REQUIREMENTS
 - ALWAYS respond in English, regardless of what language the candidate speaks. If the candidate speaks in another language, respond in English and continue the interview in English.`;
 }
 
+function buildRoleContextBlock(ctx: ScenarioContext): string {
+  const lines: string[] = [
+    `═══════════════════════════════════════════════════════════════`,
+    `ROLE & SCENARIO CONTEXT (USE THIS — DO NOT INVENT YOUR OWN)`,
+    `═══════════════════════════════════════════════════════════════`,
+    ``,
+    `You are interviewing a candidate for the role of: ${ctx.roleTitle}`,
+  ];
+
+  if (ctx.companyName) lines.push(`Company: ${ctx.companyName}`);
+  if (ctx.scenarioTitle) lines.push(`Scenario: ${ctx.scenarioTitle}`);
+  if (ctx.scenarioType) lines.push(`Interview type: ${ctx.scenarioType}`);
+
+  lines.push(``);
+  lines.push(`IMPORTANT: Frame all your questions and follow-ups in the context of this role.`);
+  lines.push(`Do NOT say "PM role" or "product management" unless the role actually is a PM role.`);
+  lines.push(`Do NOT say "consulting" or "client" unless relevant to the actual role.`);
+  lines.push(`Use the role title naturally: "In this ${ctx.roleTitle} role..." or "As a ${ctx.roleTitle}..."`);
+
+  if (ctx.constraints && ctx.constraints.length > 0) {
+    lines.push(``);
+    lines.push(`Pre-defined constraints for this scenario:`);
+    for (const c of ctx.constraints) {
+      lines.push(`• ${c}`);
+    }
+  }
+
+  if (ctx.followUps && ctx.followUps.length > 0) {
+    lines.push(``);
+    lines.push(`Suggested follow-up questions (use when appropriate):`);
+    for (const f of ctx.followUps) {
+      lines.push(`• ${f.question} (Purpose: ${f.purpose})`);
+    }
+  }
+
+  lines.push(``);
+  lines.push(`Incorporate these details into your Scenario Sheet.`);
+  lines.push(`Do NOT fabricate a completely different scenario — build on what's provided above.`);
+
+  return lines.join("\n");
+}
+
 // ============================================================================
 // PM Case Interview Instructions
 // ============================================================================
 
-function buildPMInstructions(questionText: string): string {
-  return `You are Artifact's Interviewer conducting a realistic PM case interview.
+function buildPMInstructions(questionText: string, scenarioContext?: ScenarioContext): string {
+  const opening = scenarioContext
+    ? `You are Artifact's Interviewer conducting a realistic interview for the ${scenarioContext.roleTitle} role.`
+    : `You are Artifact's Interviewer conducting a realistic PM case interview.`;
+
+  const roleBlock = scenarioContext ? `\n\n${buildRoleContextBlock(scenarioContext)}` : "";
+
+  return `${opening}
 
 Your job is to interview the candidate, not coach them. You must enforce realistic case interview behavior: minimal help, strong follow-ups, quantitative pushing, and assumption forcing.
+${roleBlock}
 
-${sharedCaseGuarantee(questionText, "PM")}
+${sharedCaseGuarantee(questionText, scenarioContext ? scenarioContext.roleTitle : "PM")}
 
 Question Validity Check (run mentally before asking)
 A valid question must include:
@@ -270,7 +331,11 @@ ${sharedNoCoaching()}
 SCENARIO SHEET & CLARIFICATION BANK
 ═══════════════════════════════════════════════════════════════
 
-At the start, create a private Scenario Sheet and maintain consistency throughout. Do NOT reveal it.
+${scenarioContext
+    ? `A Scenario Sheet has been provided above in the ROLE & SCENARIO CONTEXT section.
+Use it as your base. You may add minor details for consistency, but do NOT contradict
+or replace the provided role, company, or constraints. Do NOT reveal the Scenario Sheet.`
+    : `At the start, create a private Scenario Sheet and maintain consistency throughout. Do NOT reveal it.`}
 
 Scenario Sheet must include:
 • Company type (B2B or B2C) and simple product description
@@ -298,12 +363,19 @@ ${sharedOutput()}`;
 // Consulting Case Interview Instructions
 // ============================================================================
 
-function buildConsultingInstructions(questionText: string): string {
-  return `You are Artifact's Interviewer conducting a realistic management consulting case interview (MBB-style).
+function buildConsultingInstructions(questionText: string, scenarioContext?: ScenarioContext): string {
+  const opening = scenarioContext
+    ? `You are Artifact's Interviewer conducting a realistic interview for the ${scenarioContext.roleTitle} role.`
+    : `You are Artifact's Interviewer conducting a realistic management consulting case interview (MBB-style).`;
+
+  const roleBlock = scenarioContext ? `\n\n${buildRoleContextBlock(scenarioContext)}` : "";
+
+  return `${opening}
 
 Your job is to interview the candidate, not coach them. You must enforce realistic consulting case behavior: structured issue trees, quantitative rigor, hypothesis-driven analysis, and clear client recommendations.
+${roleBlock}
 
-${sharedCaseGuarantee(questionText, "consulting")}
+${sharedCaseGuarantee(questionText, scenarioContext ? scenarioContext.roleTitle : "consulting")}
 
 Question Validity Check (run mentally before asking)
 A valid consulting case question must include:
@@ -445,7 +517,11 @@ ${sharedNoCoaching()}
 SCENARIO SHEET & CLARIFICATION BANK
 ═══════════════════════════════════════════════════════════════
 
-At the start, create a private Scenario Sheet and maintain consistency throughout. Do NOT reveal it.
+${scenarioContext
+    ? `A Scenario Sheet has been provided above in the ROLE & SCENARIO CONTEXT section.
+Use it as your base. You may add minor details for consistency, but do NOT contradict
+or replace the provided role, company, or constraints. Do NOT reveal the Scenario Sheet.`
+    : `At the start, create a private Scenario Sheet and maintain consistency throughout. Do NOT reveal it.`}
 
 Scenario Sheet must include:
 • Industry and client description (company size, revenue, market position)
