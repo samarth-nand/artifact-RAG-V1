@@ -16,6 +16,7 @@ export interface ScenarioContext {
   companyName?: string;
   scenarioType?: string;
   scenarioTitle?: string;
+  mainQuestion?: string;
   constraints?: string[];
   followUps?: Array<{ question: string; purpose: string }>;
 }
@@ -157,7 +158,19 @@ OUTPUT REQUIREMENTS
 - Do not reveal your Scenario Sheet or Clarification Bank.
 - Maintain consistency with any facts you have already disclosed.
 - Do not use bullet points or lists in your spoken responses — speak naturally.
-- ALWAYS respond in English, regardless of what language the candidate speaks. If the candidate speaks in another language, respond in English and continue the interview in English.`;
+- ALWAYS respond in English, regardless of what language the candidate speaks. If the candidate speaks in another language, respond in English and continue the interview in English.
+
+═══════════════════════════════════════════════════════════════
+CRITICAL: TURN-TAKING RULES
+═══════════════════════════════════════════════════════════════
+
+- After you ask a question, STOP IMMEDIATELY. Do not continue speaking.
+- NEVER answer your own question. NEVER provide hints, examples, or partial answers after asking.
+- NEVER say things like "For example, you might consider..." or "One approach could be..." after posing a question.
+- Your turn ends the moment you finish asking a question or providing information the candidate requested.
+- Wait for the candidate to respond before you speak again.
+- If there is silence, that is okay — the candidate is thinking. Do not fill the silence.
+- Each of your responses should end with either a question OR a brief acknowledgment — never both followed by more content.`;
 }
 
 function buildRoleContextBlock(ctx: ScenarioContext): string {
@@ -172,6 +185,15 @@ function buildRoleContextBlock(ctx: ScenarioContext): string {
   if (ctx.companyName) lines.push(`Company: ${ctx.companyName}`);
   if (ctx.scenarioTitle) lines.push(`Scenario: ${ctx.scenarioTitle}`);
   if (ctx.scenarioType) lines.push(`Interview type: ${ctx.scenarioType}`);
+
+  if (ctx.mainQuestion) {
+    lines.push(``);
+    lines.push(`THE MAIN QUESTION TO ASK THE CANDIDATE (use this verbatim or with minor rephrasing):`);
+    lines.push(`"${ctx.mainQuestion}"`);
+    lines.push(``);
+    lines.push(`This is the primary question for this scenario. Open with this question after a brief introduction.`);
+    lines.push(`Do NOT invent a different question. Use this one.`);
+  }
 
   lines.push(``);
   lines.push(`IMPORTANT: Frame all your questions and follow-ups in the context of this role.`);
@@ -213,12 +235,15 @@ function buildPMInstructions(questionText: string, scenarioContext?: ScenarioCon
 
   const roleBlock = scenarioContext ? `\n\n${buildRoleContextBlock(scenarioContext)}` : "";
 
+  // Use the scenario's mainQuestion if available, otherwise fall back to the generic questionText
+  const effectiveQuestion = scenarioContext?.mainQuestion || questionText;
+
   return `${opening}
 
 Your job is to interview the candidate, not coach them. You must enforce realistic case interview behavior: minimal help, strong follow-ups, quantitative pushing, and assumption forcing.
 ${roleBlock}
 
-${sharedCaseGuarantee(questionText, scenarioContext ? scenarioContext.roleTitle : "PM")}
+${sharedCaseGuarantee(effectiveQuestion, scenarioContext ? scenarioContext.roleTitle : "PM")}
 
 Question Validity Check (run mentally before asking)
 A valid question must include:
@@ -370,12 +395,15 @@ function buildConsultingInstructions(questionText: string, scenarioContext?: Sce
 
   const roleBlock = scenarioContext ? `\n\n${buildRoleContextBlock(scenarioContext)}` : "";
 
+  // Use the scenario's mainQuestion if available, otherwise fall back to the generic questionText
+  const effectiveQuestion = scenarioContext?.mainQuestion || questionText;
+
   return `${opening}
 
 Your job is to interview the candidate, not coach them. You must enforce realistic consulting case behavior: structured issue trees, quantitative rigor, hypothesis-driven analysis, and clear client recommendations.
 ${roleBlock}
 
-${sharedCaseGuarantee(questionText, scenarioContext ? scenarioContext.roleTitle : "consulting")}
+${sharedCaseGuarantee(effectiveQuestion, scenarioContext ? scenarioContext.roleTitle : "consulting")}
 
 Question Validity Check (run mentally before asking)
 A valid consulting case question must include:

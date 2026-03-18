@@ -108,12 +108,20 @@ export const getCandidateVerify: APIGatewayProxyHandlerV2 = async (event) => {
       });
     }
 
-    // Return assessment overview (no full rubric — candidates shouldn't see grading criteria)
+    // Return assessment overview — include interview content but NOT grading criteria
+    // (candidates shouldn't see rubric dimensions, key signals, red flags, or passing thresholds)
     const scenarioSummaries = scenarios.map((s: any) => ({
       id: s.id,
       type: s.type,
       typeLabel: s.typeLabel,
       title: s.title,
+      mainQuestion: s.mainQuestion,
+      constraints: s.constraints,
+      followUps: s.followUps?.map((f: any) => ({
+        question: f.question,
+        purpose: f.purpose,
+      })),
+      targetCompetencies: s.targetCompetencies,
     }));
 
     logger.info("Invite verified", {
