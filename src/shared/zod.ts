@@ -141,11 +141,26 @@ export const SessionStateEnum = z.enum([
   "FAILED",
 ]);
 
+export const ScenarioContextSchema = z.object({
+  roleTitle: z.string(),
+  companyName: z.string().optional(),
+  scenarioType: z.string().optional(),
+  scenarioTitle: z.string().optional(),
+  constraints: z.array(z.string()).optional(),
+  followUps: z.array(z.object({
+    question: z.string(),
+    purpose: z.string(),
+  })).optional(),
+});
+
+export type ScenarioContext = z.infer<typeof ScenarioContextSchema>;
+
 export const CreateSessionRequestSchema = z.object({
   userId: z.string().min(1),
   questionId: z.string().min(1),
   questionText: z.string().min(1).optional(),
   mode: z.enum(["pm", "consulting"]).default("pm"),
+  scenarioContext: ScenarioContextSchema.optional(),
 });
 
 export const RealtimeClientSecretSchema = z.object({

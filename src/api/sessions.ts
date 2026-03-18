@@ -30,7 +30,7 @@ export async function createSession(request: typeof CreateSessionRequestSchema._
     }
     
     // Build system instructions for realtime interview
-    const systemInstructions = buildRealtimeInstructions(request.questionId, questionText, request.mode);
+    const systemInstructions = buildRealtimeInstructions(request.questionId, questionText, request.mode, request.scenarioContext);
 
     // Create ephemeral realtime session with OpenAI
     const realtimeConfig = await createRealtimeSession(systemInstructions);
