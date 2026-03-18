@@ -3,8 +3,17 @@ import { interviewSessions, interviewTurns } from "../db/schema";
 import { CreateSessionRequestSchema, CreateSessionResponseSchema } from "../shared/zod";
 import { logger } from "../shared/logger";
 import { createRealtimeSession } from "../realtime/session";
-import { buildRealtimeInstructions } from "../realtime/instructions";
+import { buildRealtimeInstructions, InterviewMode } from "../realtime/instructions";
 import { randomUUID } from "crypto";
+
+/** Map frontend mode names to instruction builder modes */
+const MODE_MAP: Record<string, InterviewMode> = {
+  pm: "pm",
+  consulting: "consulting",
+  pm_mock: "pm",
+  technical: "pm",
+  behavioral: "pm",
+};
 import { eq } from "drizzle-orm";
 import { getQuestion } from "../interview/questionBank";
 import { retrieveChunks } from "../kb/retrieve";
@@ -30,7 +39,8 @@ export async function createSession(request: typeof CreateSessionRequestSchema._
     }
     
     // Build system instructions for realtime interview
-    const systemInstructions = buildRealtimeInstructions(request.questionId, questionText, request.mode, request.scenarioContext);
+    const instructionMode = MODE_MAP[request.mode] || "pm";
+    const systemInstructions = buildRealtimeInstructions(request.questionId, questionText, instructionMode, request.scenarioContext);
 
     // Create ephemeral realtime session with OpenAI
     const realtimeConfig = await createRealtimeSession(systemInstructions);

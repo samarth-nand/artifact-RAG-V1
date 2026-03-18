@@ -160,7 +160,7 @@ export const CreateSessionRequestSchema = z.object({
   userId: z.string().min(1),
   questionId: z.string().min(1),
   questionText: z.string().min(1).optional(),
-  mode: z.enum(["pm", "consulting"]).default("pm"),
+  mode: z.enum(["pm", "consulting", "pm_mock", "technical", "behavioral"]).default("pm"),
   scenarioContext: ScenarioContextSchema.optional(),
 });
 
