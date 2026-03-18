@@ -5,6 +5,12 @@ import { createErrorResponse } from "../errorResponses";
 import { getTursoClient } from "../../db/turso";
 
 /**
+ * Once a candidate opens the assessment, they have this many hours to complete all scenarios.
+ * After this window, the token is considered expired even if the calendar expiry hasn't passed.
+ */
+const SESSION_WINDOW_HOURS = 4;
+
+/**
  * GET /candidate/verify/:token
  *
  * Verifies an invite token and returns assessment details.
@@ -28,7 +34,7 @@ export const getCandidateVerify: APIGatewayProxyHandlerV2 = async (event) => {
       sql: `
         SELECT
           i.id, i.assessment_id, i.candidate_email, i.candidate_name,
-          i.status, i.expires_at, i.created_at
+          i.status, i.expires_at, i.opened_at, i.started_at, i.created_at
         FROM assessment_invites i
         WHERE i.token = ?
         LIMIT 1
@@ -70,6 +76,29 @@ export const getCandidateVerify: APIGatewayProxyHandlerV2 = async (event) => {
         body: JSON.stringify({ valid: false, error: "This assessment has already been completed" }),
         headers: corsHeaders,
       };
+    }
+
+    // Enforce session window: once opened, candidate must finish within SESSION_WINDOW_HOURS
+    if (invite.status === "in_progress" || invite.status === "opened") {
+      const sessionStart = (invite.opened_at || invite.started_at) as string | null;
+      if (sessionStart) {
+        const hoursSinceStart = (Date.now() - new Date(sessionStart).getTime()) / (1000 * 60 * 60);
+        if (hoursSinceStart > SESSION_WINDOW_HOURS) {
+          // Mark as expired
+          await turso.execute({
+            sql: `UPDATE assessment_invites SET status = 'expired', updated_at = ? WHERE id = ?`,
+            args: [new Date().toISOString(), invite.id],
+          });
+          return {
+            statusCode: 200,
+            body: JSON.stringify({
+              valid: false,
+              error: "Your assessment session has expired. You must complete all scenarios within the allotted time window.",
+            }),
+            headers: corsHeaders,
+          };
+        }
+      }
     }
 
     // Load assessment + role info

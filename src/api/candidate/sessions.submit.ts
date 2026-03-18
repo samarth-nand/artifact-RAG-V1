@@ -28,7 +28,7 @@ export const postCandidateSessionSubmit: APIGatewayProxyHandlerV2 = async (event
     // 1. Verify invite token
     const inviteResult = await turso.execute({
       sql: `
-        SELECT id, assessment_id, candidate_email, status, expires_at
+        SELECT id, assessment_id, candidate_email, status, expires_at, opened_at, started_at
         FROM assessment_invites
         WHERE token = ?
         LIMIT 1
@@ -50,6 +50,21 @@ export const postCandidateSessionSubmit: APIGatewayProxyHandlerV2 = async (event
     // Check if already completed
     if (invite.status === "completed") {
       return createErrorResponse(409, "ALREADY_USED", "This assessment has already been completed");
+    }
+
+    // Enforce session window: once opened, candidate must finish within 4 hours
+    const SESSION_WINDOW_HOURS = 4;
+    const sessionStart = (invite.opened_at || invite.started_at) as string | null;
+    if (sessionStart) {
+      const hoursSinceStart = (Date.now() - new Date(sessionStart).getTime()) / (1000 * 60 * 60);
+      if (hoursSinceStart > SESSION_WINDOW_HOURS) {
+        // Mark as expired
+        await turso.execute({
+          sql: `UPDATE assessment_invites SET status = 'expired', updated_at = ? WHERE id = ?`,
+          args: [new Date().toISOString(), invite.id],
+        });
+        return createErrorResponse(410, "EXPIRED", "Your assessment session has expired. You must complete all scenarios within the allotted time window.");
+      }
     }
 
     const assessmentId = invite.assessment_id as number;
