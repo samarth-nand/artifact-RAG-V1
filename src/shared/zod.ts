@@ -157,7 +157,7 @@ export const ScenarioContextSchema = z.object({
 export type ScenarioContext = z.infer<typeof ScenarioContextSchema>;
 
 export const CreateSessionRequestSchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().default("anonymous"),
   questionId: z.string().min(1),
   questionText: z.string().min(1).optional(),
   mode: z.enum(["pm", "consulting", "pm_mock", "technical", "behavioral"]).default("pm"),

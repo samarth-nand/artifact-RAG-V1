@@ -16,13 +16,31 @@ import OpenAI from "openai";
 
 const MAX_RETRIES = 2;
 
-// Detect test attempts: < 30 seconds of audio OR < 70 words = dummy data
+/**
+ * Extract only the candidate's speech from the transcript.
+ * Handles "Candidate: ..." lines and excludes "Interviewer: ..." lines.
+ */
+function extractCandidateText(transcript: string): string {
+  return transcript
+    .split('\n')
+    .filter(line => {
+      const trimmed = line.trim();
+      if (/^candidate:/i.test(trimmed)) return true;
+      if (/^interviewer:/i.test(trimmed)) return false;
+      if (!trimmed) return false;
+      return false; // Only count explicitly labeled candidate lines
+    })
+    .map(line => line.replace(/^candidate:\s*/i, '').trim())
+    .join(' ')
+    .trim();
+}
+
+// Detect test attempts: < 30 seconds of audio OR candidate said < 30 words
 function isTestAttempt(transcript: string, sessionStartTime?: Date, sessionEndTime?: Date): boolean {
-  // Check word count: < 70 words = test attempt
-  // Average speech is ~140 words/minute = ~2.3 words/second
-  // 30 seconds ≈ ~70 words minimum for real attempt
-  const wordCount = transcript.trim().split(/\s+/).length;
-  if (wordCount < 70) {
+  // Check candidate word count (not full transcript which includes interviewer)
+  const candidateText = extractCandidateText(transcript);
+  const wordCount = candidateText.split(/\s+/).filter(w => w.length > 0).length;
+  if (wordCount < 30) {
     return true;
   }
 

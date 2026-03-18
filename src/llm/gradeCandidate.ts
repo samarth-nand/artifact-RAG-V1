@@ -23,15 +23,34 @@ export interface GradeCandidateResult {
 }
 
 // ---------------------------------------------------------------------------
-// Test attempt detection
+// Test attempt detection — only counts CANDIDATE speech, not interviewer
 // ---------------------------------------------------------------------------
 
-const MIN_WORD_COUNT = 50;
-const MIN_TRANSCRIPT_LENGTH = 100;
+const MIN_CANDIDATE_WORD_COUNT = 30;
+
+/**
+ * Extract only the candidate's speech from the transcript.
+ * Handles "Candidate: ..." lines and excludes "Interviewer: ..." lines.
+ */
+function extractCandidateText(transcript: string): string {
+  return transcript
+    .split('\n')
+    .filter(line => {
+      const trimmed = line.trim();
+      if (/^candidate:/i.test(trimmed)) return true;
+      if (/^interviewer:/i.test(trimmed)) return false;
+      if (!trimmed) return false;
+      return false; // Only count explicitly labeled candidate lines
+    })
+    .map(line => line.replace(/^candidate:\s*/i, '').trim())
+    .join(' ')
+    .trim();
+}
 
 function isTestAttempt(transcript: string): boolean {
-  const wordCount = transcript.trim().split(/\s+/).length;
-  return transcript.length < MIN_TRANSCRIPT_LENGTH || wordCount < MIN_WORD_COUNT;
+  const candidateText = extractCandidateText(transcript);
+  const wordCount = candidateText.split(/\s+/).filter(w => w.length > 0).length;
+  return wordCount < MIN_CANDIDATE_WORD_COUNT;
 }
 
 function stubGrade(scenario: GeneratedScenario): CandidateGradeOutput {
@@ -103,6 +122,10 @@ GRADING RULES:
 6. Provide 2-4 strengths and 2-4 areas for improvement.
 7. Be fair but rigorous — anchor to the rubric, not your general impression.
 8. If the candidate addressed follow-up questions, credit appropriate depth.
+9. CRITICAL: Only grade what the CANDIDATE said. Interviewer questions do not count as candidate content.
+   If the candidate provided NO substantive response (silence, single-word answers, or off-topic filler),
+   ALL dimension scores MUST be 0 and the overall score MUST be 0. Do not infer or imagine answers
+   the candidate might have given — grade only what they actually said.
 
 Return ONLY the JSON matching the provided schema.`;
 }
