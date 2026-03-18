@@ -146,6 +146,7 @@ export const ScenarioContextSchema = z.object({
   companyName: z.string().optional(),
   scenarioType: z.string().optional(),
   scenarioTitle: z.string().optional(),
+  mainQuestion: z.string().optional(),
   constraints: z.array(z.string()).optional(),
   followUps: z.array(z.object({
     question: z.string(),
