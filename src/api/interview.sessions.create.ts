@@ -8,9 +8,17 @@ import {
   CreateInterviewSessionResponseSchema,
 } from "../shared/zod";
 import { createRealtimeSession } from "../realtime/session";
+import { buildRealtimeInstructions, InterviewMode } from "../realtime/instructions";
 import { storeSecret } from "../realtime/secretStore";
 import { getEnv } from "../shared/env";
 import { createErrorResponse, ErrorCode } from "./errorResponses";
+
+/** Map frontend mode names to instruction builder modes */
+const MODE_MAP: Record<string, InterviewMode> = {
+  pm_mock: "pm",
+  technical: "pm",
+  behavioral: "pm",
+};
 
 /**
  * POST /interview/sessions
@@ -37,20 +45,19 @@ export const postInterviewSessions: APIGatewayProxyHandlerV2 = async (event) => 
     // Generate session ID
     const sessionId = randomUUID();
 
-    // Create OpenAI Realtime session with default instructions
-    // TODO: Customize instructions based on mode/difficulty
-    const defaultInstructions = `You are conducting a ${request.mode} interview. Be professional and thorough.
+    // Build interview instructions using scenario context when available
+    const instructionMode = MODE_MAP[request.mode] || "pm";
+    const questionId = request.questionId || "dynamic";
+    const questionText = request.questionText || `[${request.mode} interview question]`;
 
-PERSONALITY:
-- Warm, witty, quick-talking; conversationally human but never claim to be human or to take physical actions.
-- Keep responses concise and natural - think podcast host, not corporate training.
-- Use humor and empathy when appropriate to put candidates at ease.
+    const instructions = buildRealtimeInstructions(
+      questionId,
+      questionText,
+      instructionMode,
+      request.scenarioContext
+    );
 
-LANGUAGE:
-- Mirror the user's language and accent/dialect.
-- Default to English (US).
-- If the user switches languages, give one brief confirmation, then follow their language.`;
-    const realtimeConfig = await createRealtimeSession(defaultInstructions);
+    const realtimeConfig = await createRealtimeSession(instructions);
 
     // Store ephemeral secret with TTL
     const env = getEnv();
@@ -72,7 +79,7 @@ LANGUAGE:
       ttl: ttlSeconds,
     });
 
-    const response = CreateInterviewSessionResponseSchema.parse({ sessionId });
+    const response = CreateInterviewSessionResponseSchema.parse({ sessionId, instructions });
 
     return {
       statusCode: 200,

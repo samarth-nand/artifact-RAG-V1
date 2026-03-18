@@ -305,10 +305,14 @@ export const CreateInterviewSessionRequestSchema = z.object({
   voice: z.enum(["alloy", "echo", "fable", "onyx", "nova", "shimmer"]).optional(),
   difficulty: z.enum(["easy", "medium", "hard"]).optional(),
   nonce: z.string().optional(),
+  questionId: z.string().optional(),
+  questionText: z.string().optional(),
+  scenarioContext: ScenarioContextSchema.optional(),
 });
 
 export const CreateInterviewSessionResponseSchema = z.object({
   sessionId: z.string().uuid(),
+  instructions: z.string().optional(),
 });
 
 export const ConnectInterviewSessionRequestSchema = z.object({
