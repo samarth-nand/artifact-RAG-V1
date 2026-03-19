@@ -6,6 +6,15 @@ import { createErrorResponse } from "../errorResponses";
 import { getTursoClient } from "../../db/turso";
 import type { LeaderboardEntry } from "../../recruiter/candidate.zod";
 
+function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
 /**
  * GET /recruiter/assessments/:assessmentId/leaderboard
  *
@@ -95,18 +104,30 @@ export const getAssessmentLeaderboard: APIGatewayProxyHandlerV2 = async (event) 
       };
     }
 
-    // 3. Get all scores for this assessment
+    // 3. Get all scores for this assessment (including grading rationale)
     const scoresResult = await turso.execute({
       sql: `
-        SELECT invite_id, scenario_id, overall_score, is_test_attempt
+        SELECT invite_id, scenario_id, overall_score, is_test_attempt,
+               dimension_scores, key_signals_hit, red_flags_found, strengths, improvements
         FROM candidate_scores
         WHERE assessment_id = ?
       `,
       args: [assessmentId],
     });
 
+    interface ScoreEntry {
+      scenarioId: string;
+      score: number;
+      isTest: boolean;
+      dimensionScores: Array<{ name: string; score: number; weight: number; rationale: string; evidence: string[] }>;
+      keySignalsHit: string[];
+      redFlagsFound: string[];
+      strengths: string[];
+      improvements: string[];
+    }
+
     // Group scores by invite_id
-    const scoresByInvite = new Map<number, Array<{ scenarioId: string; score: number; isTest: boolean }>>();
+    const scoresByInvite = new Map<number, ScoreEntry[]>();
     for (const row of scoresResult.rows) {
       const inviteId = row.invite_id as number;
       if (!scoresByInvite.has(inviteId)) {
@@ -116,6 +137,11 @@ export const getAssessmentLeaderboard: APIGatewayProxyHandlerV2 = async (event) 
         scenarioId: row.scenario_id as string,
         score: row.overall_score as number,
         isTest: (row.is_test_attempt as number) === 1,
+        dimensionScores: safeJsonParse(row.dimension_scores as string, []),
+        keySignalsHit: safeJsonParse(row.key_signals_hit as string, []),
+        redFlagsFound: safeJsonParse(row.red_flags_found as string, []),
+        strengths: safeJsonParse(row.strengths as string, []),
+        improvements: safeJsonParse(row.improvements as string, []),
       });
     }
 
@@ -151,11 +177,17 @@ export const getAssessmentLeaderboard: APIGatewayProxyHandlerV2 = async (event) 
           scenarioTitle: scenarioInfo?.title ?? "Unknown",
           score: s.score,
           passed: s.score >= (scenarioInfo?.passingThreshold ?? 70),
+          dimensionScores: s.dimensionScores,
+          keySignalsHit: s.keySignalsHit,
+          redFlagsFound: s.redFlagsFound,
+          strengths: s.strengths,
+          improvements: s.improvements,
         };
       });
 
       entries.push({
         rank: 0, // filled below
+        inviteId,
         candidateEmail: invite.candidate_email as string,
         candidateName: (invite.candidate_name as string) ?? null,
         avgScore,

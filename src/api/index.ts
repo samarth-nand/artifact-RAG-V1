@@ -19,6 +19,7 @@ export { getAdminExemplars, postAdminExemplarVerify } from "./exemplars.admin";
 export { postGenerateScenarios } from "./recruiter/roles.generateScenarios";
 export { postAssessmentInvite } from "./recruiter/assessments.invite";
 export { getAssessmentLeaderboard } from "./recruiter/assessments.leaderboard";
+export { getCandidateScorecard } from "./recruiter/assessments.scorecard";
 export { getCandidateVerify } from "./candidate/verify";
 export { postCandidateSessionSubmit } from "./candidate/sessions.submit";
 export { postSessionIssueTree } from "./sessions.issueTree";
@@ -64,6 +65,14 @@ export const postSessions: APIGatewayProxyHandlerV2 = async (event) => {
     await ensureIngestInitialized();
 
     const body = JSON.parse(event.body || "{}");
+
+    // Prefer x-user-id header over body userId for consistency with downstream
+    // auth checks (issue-tree, results, etc. all read x-user-id from header)
+    const headerUserId = event.headers["x-user-id"] || event.headers["X-User-Id"];
+    if (headerUserId) {
+      body.userId = headerUserId;
+    }
+
     const request = CreateSessionRequestSchema.parse(body);
 
     const result = await createSession(request);

@@ -225,10 +225,14 @@ function buildRoleContextBlock(ctx: ScenarioContext): string {
 
   if (ctx.followUps && ctx.followUps.length > 0) {
     lines.push(``);
-    lines.push(`Suggested follow-up questions (use when appropriate):`);
-    for (const f of ctx.followUps) {
-      lines.push(`• ${f.question} (Purpose: ${f.purpose})`);
+    lines.push(`REQUIRED FOLLOW-UP QUESTIONS (you MUST ask all of these during the interview):`);
+    for (let i = 0; i < ctx.followUps.length; i++) {
+      const f = ctx.followUps[i];
+      lines.push(`  ${i + 1}. ${f.question} (Purpose: ${f.purpose})`);
     }
+    lines.push(``);
+    lines.push(`You have ${ctx.followUps.length} follow-up questions to cover. Plan your pacing accordingly.`);
+    lines.push(`Do NOT spend the entire interview on the main question — you must transition to the follow-ups.`);
   }
 
   lines.push(``);
@@ -592,10 +596,14 @@ QUESTION:
 
 Use this question as provided. You may rephrase slightly for conversational flow, but do not change the substance or invent a different question.`;
 
+  const followUpCount = ctx.followUps?.length ?? 0;
+
   return `${opening}
 
 ${roleBlock}
 ${caseGuaranteeBlock}
+
+${buildScenarioPacing(followUpCount)}
 
 ${buildScenarioPhases(scenarioType, roleTitle)}
 
@@ -640,6 +648,40 @@ ${sharedOutput()}`;
 // ============================================================================
 // Scenario-Type-Specific Sections
 // ============================================================================
+
+function buildScenarioPacing(followUpCount: number): string {
+  const totalQuestions = 1 + followUpCount; // main question + follow-ups
+  return `═══════════════════════════════════════════════════════════════
+PACING & TIME MANAGEMENT (CRITICAL)
+═══════════════════════════════════════════════════════════════
+
+This interview has a FIXED TIME LIMIT. You must cover ALL questions within the session.
+
+QUESTION BUDGET:
+- 1 main question + ${followUpCount} follow-up question${followUpCount !== 1 ? 's' : ''} = ${totalQuestions} total questions to cover
+- You MUST reach all ${totalQuestions} questions before the interview ends
+
+TURN COUNTING:
+- Track how many candidate responses (turns) you have received.
+- After the candidate's FIRST substantive response to the main question, probe 1-2 times for depth, then MOVE ON to the first follow-up.
+- For each follow-up: ask the question, let the candidate respond, probe once if needed, then move to the next follow-up.
+- Do NOT spend more than 3-4 candidate turns on any single question.
+
+PACING RULES:
+- After ~${Math.max(3, Math.round(8 / totalQuestions))} candidate turns on the main question, you MUST transition: "Good. Let me shift to another aspect..."
+- After ~2-3 candidate turns per follow-up, move to the next one.
+- If the candidate is rambling or going in circles, cut in: "Let me move us forward — I have another question for you."
+- Do NOT wait for the candidate to "finish perfectly" — real interviewers manage time.
+- If you have covered all questions and the candidate has given substantive answers, you may end the interview.
+
+TRANSITION PHRASES:
+- "Good, let's move on. I'd like to ask you about..."
+- "Understood. Shifting gears — [next follow-up question]"
+- "That's helpful. Let me ask you something different..."
+- "I want to make sure we cover everything. [next question]"
+
+WARNING: If you reach the end of the interview without asking all follow-up questions, the interview is incomplete. Prioritize coverage over depth on any single question.`;
+}
 
 function buildScenarioPhases(scenarioType: string, roleTitle: string): string {
   if (scenarioType === "behavioral") {

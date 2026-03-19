@@ -134,6 +134,7 @@ export type CandidateGradeOutput = z.infer<typeof CandidateGradeOutputSchema>;
 
 export const LeaderboardEntrySchema = z.object({
   rank: z.number(),
+  inviteId: z.number(),
   candidateEmail: z.string(),
   candidateName: z.string().nullable(),
   avgScore: z.number(),
@@ -149,6 +150,19 @@ export const LeaderboardEntrySchema = z.object({
       scenarioTitle: z.string(),
       score: z.number(),
       passed: z.boolean(),
+      dimensionScores: z.array(
+        z.object({
+          name: z.string(),
+          score: z.number(),
+          weight: z.number(),
+          rationale: z.string(),
+          evidence: z.array(z.string()),
+        })
+      ).optional(),
+      keySignalsHit: z.array(z.string()).optional(),
+      redFlagsFound: z.array(z.string()).optional(),
+      strengths: z.array(z.string()).optional(),
+      improvements: z.array(z.string()).optional(),
     })
   ),
 });

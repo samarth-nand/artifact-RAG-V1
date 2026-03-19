@@ -26,6 +26,7 @@ import {
   postGenerateScenarios,
   postAssessmentInvite,
   getAssessmentLeaderboard,
+  getCandidateScorecard,
   getCandidateVerify,
   postCandidateSessionSubmit,
   postSessionIssueTree,
@@ -85,6 +86,7 @@ const postAdminExemplarVerifyHandler = postAdminExemplarVerify as unknown as Lam
 const postGenerateScenariosHandler = postGenerateScenarios as unknown as LambdaHandler;
 const postAssessmentInviteHandler = postAssessmentInvite as unknown as LambdaHandler;
 const getAssessmentLeaderboardHandler = getAssessmentLeaderboard as unknown as LambdaHandler;
+const getCandidateScorecardHandler = getCandidateScorecard as unknown as LambdaHandler;
 const getCandidateVerifyHandler = getCandidateVerify as unknown as LambdaHandler;
 const postCandidateSessionSubmitHandler = postCandidateSessionSubmit as unknown as LambdaHandler;
 const postSessionIssueTreeHandler = postSessionIssueTree as unknown as LambdaHandler;
@@ -280,6 +282,14 @@ app.get("/recruiter/assessments/:assessmentId/leaderboard", async (req: Request,
   sendResult(res, result);
 });
 
+// Recruiter candidate scorecard (detailed grading breakdown)
+app.get("/recruiter/assessments/:assessmentId/candidates/:inviteId/scorecard", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { assessmentId: req.params.assessmentId, inviteId: req.params.inviteId };
+  const result = await getCandidateScorecardHandler(event);
+  sendResult(res, result);
+});
+
 // Candidate verify invite token (no auth required)
 app.get("/candidate/verify/:token", async (req: Request, res: Response) => {
   const event = expressToLambdaEvent(req);
@@ -345,6 +355,7 @@ if (env.SERVE_FRONTEND === "true") {
         "POST /recruiter/roles/:id/generate-scenarios",
         "POST /recruiter/assessments/:id/invite",
         "GET /recruiter/assessments/:id/leaderboard",
+        "GET /recruiter/assessments/:id/candidates/:inviteId/scorecard",
         "GET /candidate/verify/:token",
         "POST /candidate/sessions/submit",
         "GET /healthz"
