@@ -7,22 +7,41 @@ import {
   SCENARIO_TYPE_LABELS,
   type LLMScenariosOutput,
   LLMScenariosOutputSchema,
+  type Difficulty,
 } from "../recruiter/scenarios.zod";
+import { getDomainContext } from "./domainContext";
 
 export interface GenerateScenariosParams {
   role: RoleData;
   count: number;
   types: ScenarioType[];
   additionalContext?: string;
+  difficulties?: Difficulty[];
 }
 
 interface GenerateSingleScenarioParams {
   role: RoleData;
   type: ScenarioType;
+  difficulty: Difficulty;
   index: number;
   totalCount: number;
   allTypes: ScenarioType[];
   additionalContext?: string;
+}
+
+/**
+ * Distribute difficulties across N scenarios: 1 easy, (N-2) medium, 1 hard.
+ * For N=1: ["medium"]. For N=2: ["easy", "hard"].
+ */
+function assignDifficulties(count: number): Difficulty[] {
+  if (count === 1) return ["medium"];
+  if (count === 2) return ["easy", "hard"];
+  const difficulties: Difficulty[] = ["easy"];
+  for (let i = 0; i < count - 2; i++) {
+    difficulties.push("medium");
+  }
+  difficulties.push("hard");
+  return difficulties;
 }
 
 export interface GenerateScenariosLLMResult {
@@ -36,9 +55,10 @@ export interface GenerateScenariosLLMResult {
 // Prompts
 // ---------------------------------------------------------------------------
 
-function buildSystemPrompt(): string {
-  return `You are an expert interview designer for product management and technical roles.
-Your job is to create realistic, challenging interview scenarios tailored to a specific role, company, and seniority level.
+function buildSystemPrompt(role: RoleData): string {
+  const domainGrounding = getDomainContext(role.title, role.pmType, role.companyIndustry);
+
+  return `You are an expert interview designer who creates realistic, challenging interview scenarios tailored to a specific role, company, and seniority level.
 
 CRITICAL REQUIREMENTS:
 1. Each scenario MUST be grounded in the specific role context, company, and industry provided.
@@ -53,10 +73,46 @@ SCENARIO TYPE GUIDELINES:
 - situational: hypothetical workplace scenarios requiring judgment calls.
 - technical: system design, technical tradeoffs, architecture decisions.
 
+DIFFICULTY LEVELS:
+Each scenario has an assigned difficulty. Calibrate complexity, ambiguity, and grading strictness accordingly:
+- easy: Straightforward problem with clear scope. Fewer constraints, less ambiguity. A competent candidate at this level should be able to structure a solid response. Follow-ups probe for basic depth.
+- medium: Realistic complexity with competing priorities and some ambiguity. Requires tradeoff reasoning and domain knowledge. Follow-ups push for specifics and quantitative thinking.
+- hard: High ambiguity, multiple stakeholders with conflicting goals, tight constraints. Requires sophisticated reasoning, creative problem-solving, and strong domain expertise. Follow-ups challenge assumptions and force difficult tradeoffs.
+
 DIVERSITY ENFORCEMENT:
 - If generating multiple scenarios of the same type, ensure they test DIFFERENT competencies.
 - Vary scenario settings: growth vs crisis, new product vs scaling, internal vs external.
 - Do NOT repeat structural patterns across scenarios.
+${domainGrounding ? `
+DOMAIN-SPECIFIC GRADING STANDARDS
+The following standards are grounded in real practitioner knowledge for this role type.
+Use them to inform your rubric dimensions, scoring guide language, key signals, and red flags.
+Do not copy them verbatim — use them as grounding to write rubric content that is specific
+to this scenario's context.
+
+${domainGrounding}
+` : ""}
+CASE EXHIBITS:
+Each scenario includes "exhibits" — visual materials the candidate sees alongside the question.
+Exhibits make scenarios more realistic by providing concrete data to analyze.
+
+Exhibit types:
+- data_table: Structured data. The "content" field must be a valid JSON string: {"headers": ["Col1", "Col2"], "rows": [["val1", "val2"]]}. Include 3-8 rows of realistic data. Use real-sounding but fictional numbers.
+- metric_set: Key metrics. The "content" field must be a valid JSON string: {"metrics": [{"label": "DAU", "value": "2.3M", "context": "Down 12% MoM"}]}. Include 3-6 metrics.
+- text_brief: A paragraph of context (email excerpt, memo, brief). The "content" field is plain text.
+
+Exhibit rules by scenario type:
+- case_interview: MUST include 1-3 exhibits. At minimum, include one data_table or metric_set with realistic numbers the candidate should reference in their analysis.
+- situational: Include 1-2 exhibits when the scenario involves analyzing a situation (email thread, context brief, performance data). Skip if purely about judgment — return empty array [].
+- technical: Include 1-2 exhibits when system specs, performance data, or architecture context would help. Skip for abstract design questions — return empty array [].
+- behavioral: Return an empty exhibits array []. Behavioral questions are about personal experience and do not need exhibits.
+
+Exhibit quality:
+- Data must be internally consistent (revenue = price x volume, percentages should sum correctly, trends should be plausible).
+- Numbers should be realistic for the company size, industry, and scenario context.
+- Tables should have 3-8 rows and 2-5 columns — enough to analyze but not overwhelming.
+- Exhibit titles should be concise ("Q3 2024 Revenue by Segment", "System Performance Metrics").
+- The description should explain what the exhibit shows in one sentence.
 
 GRADING CRITERIA REQUIREMENTS:
 - rubricDimension weights within each scenario must sum to approximately 1.0.
@@ -185,20 +241,27 @@ Each follow-up must have a clear purpose and expectedSignals.`;
 }
 
 function buildSingleScenarioUserPrompt(params: GenerateSingleScenarioParams): string {
-  const { role, type, index, totalCount, allTypes, additionalContext } = params;
+  const { role, type, difficulty, index, totalCount, allTypes, additionalContext } = params;
 
   const otherTypes = allTypes
     .filter((_, i) => i !== index)
     .map((t) => `${t} (${SCENARIO_TYPE_LABELS[t]})`)
     .join(", ");
 
-  return `Generate exactly 1 interview scenario of type "${type}" (${SCENARIO_TYPE_LABELS[type]}) for this role.
+  return `Generate exactly 1 interview scenario of type "${type}" (${SCENARIO_TYPE_LABELS[type]}) at difficulty level "${difficulty}" for this role.
 
 ${buildRoleContext(role)}
 
 === INSTRUCTIONS ===
 This is scenario ${index + 1} of ${totalCount}. The other scenarios cover: ${otherTypes}.
 Your scenario MUST test DIFFERENT competencies from what those types typically cover — ensure diversity.
+
+DIFFICULTY: ${difficulty.toUpperCase()}
+- The difficulty field in the output MUST be "${difficulty}".
+- Calibrate the scenario complexity, ambiguity, constraints, and follow-up depth to match "${difficulty}" level as described in the system prompt.
+
+EXHIBITS: Generate appropriate exhibits for this "${type}" scenario.${type === "case_interview" ? " This is a case interview — you MUST include at least 1 exhibit with concrete data (data_table or metric_set)." : ""}${type === "behavioral" ? " This is behavioral — return an empty exhibits array []." : ""}
+For data_table and metric_set exhibits, the "content" field must be a valid JSON string (not a raw object).
 
 ${additionalContext ? `Additional Context from Recruiter:\n${additionalContext}\n` : ""}
 Ground the scenario in the SPECIFIC company, product, and role context above.
@@ -226,8 +289,10 @@ const SCENARIOS_JSON_SCHEMA = {
           type: "object" as const,
           required: [
             "type",
+            "difficulty",
             "title",
             "constraints",
+            "exhibits",
             "mainQuestion",
             "followUps",
             "gradingCriteria",
@@ -239,10 +304,31 @@ const SCENARIOS_JSON_SCHEMA = {
               type: "string" as const,
               enum: ["case_interview", "behavioral", "situational", "technical"],
             },
+            difficulty: {
+              type: "string" as const,
+              enum: ["easy", "medium", "hard"],
+            },
             title: { type: "string" as const },
             constraints: {
               type: "array" as const,
               items: { type: "string" as const },
+            },
+            exhibits: {
+              type: "array" as const,
+              items: {
+                type: "object" as const,
+                required: ["type", "title", "description", "content"],
+                additionalProperties: false,
+                properties: {
+                  type: {
+                    type: "string" as const,
+                    enum: ["data_table", "text_brief", "metric_set"],
+                  },
+                  title: { type: "string" as const },
+                  description: { type: "string" as const },
+                  content: { type: "string" as const },
+                },
+              },
             },
             mainQuestion: { type: "string" as const },
             followUps: {
@@ -328,8 +414,10 @@ const SINGLE_SCENARIO_JSON_SCHEMA = {
     type: "object" as const,
     required: [
       "type",
+      "difficulty",
       "title",
       "constraints",
+      "exhibits",
       "mainQuestion",
       "followUps",
       "gradingCriteria",
@@ -342,6 +430,77 @@ const SINGLE_SCENARIO_JSON_SCHEMA = {
 };
 
 // ---------------------------------------------------------------------------
+// Single scenario regeneration (used for per-scenario refresh)
+// ---------------------------------------------------------------------------
+
+export interface RegenerateSingleScenarioParams {
+  role: RoleData;
+  type: ScenarioType;
+  difficulty: Difficulty;
+  index: number;
+  totalCount: number;
+  allTypes: ScenarioType[];
+  additionalContext?: string;
+}
+
+export interface RegenerateSingleScenarioResult {
+  scenario: LLMScenariosOutput["scenarios"][number];
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+}
+
+export async function regenerateSingleScenario(
+  params: RegenerateSingleScenarioParams
+): Promise<RegenerateSingleScenarioResult> {
+  const client = getOpenAIClient();
+  const env = getEnv();
+  const model = env.OPENAI_CHAT_MODEL;
+
+  const userPrompt = buildSingleScenarioUserPrompt({
+    role: params.role,
+    type: params.type,
+    difficulty: params.difficulty,
+    index: params.index,
+    totalCount: params.totalCount,
+    allTypes: params.allTypes,
+    additionalContext: params.additionalContext,
+  });
+
+  logger.info("Regenerating single scenario", {
+    roleId: params.role.id,
+    type: params.type,
+    difficulty: params.difficulty,
+    index: params.index,
+    model,
+  });
+
+  const response = await client.chat.completions.create({
+    model,
+    messages: [
+      { role: "system", content: buildSystemPrompt(params.role) },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.8,
+    response_format: {
+      type: "json_schema",
+      json_schema: SINGLE_SCENARIO_JSON_SCHEMA,
+    },
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error("Empty response from scenario generation model");
+
+  const parsed = JSON.parse(content);
+  return {
+    scenario: { ...parsed, difficulty: params.difficulty },
+    model,
+    promptTokens: response.usage?.prompt_tokens ?? 0,
+    completionTokens: response.usage?.completion_tokens ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Main function — parallel generation (fires N calls concurrently)
 // ---------------------------------------------------------------------------
 
@@ -351,12 +510,15 @@ export async function generateScenariosWithLLM(
   const client = getOpenAIClient();
   const env = getEnv();
   const model = env.OPENAI_CHAT_MODEL;
-  const systemPrompt = buildSystemPrompt();
+  const systemPrompt = buildSystemPrompt(params.role);
+
+  const difficulties = params.difficulties ?? assignDifficulties(params.count);
 
   logger.info("Generating scenarios in parallel", {
     roleId: params.role.id,
     count: params.count,
     types: params.types,
+    difficulties,
     model,
   });
 
@@ -364,6 +526,7 @@ export async function generateScenariosWithLLM(
     const userPrompt = buildSingleScenarioUserPrompt({
       role: params.role,
       type,
+      difficulty: difficulties[index],
       index,
       totalCount: params.count,
       allTypes: params.types,
@@ -390,14 +553,14 @@ export async function generateScenariosWithLLM(
   let totalPromptTokens = 0;
   let totalCompletionTokens = 0;
 
-  for (const response of results) {
+  for (const [index, response] of results.entries()) {
     const content = response.choices[0]?.message?.content;
     if (!content) {
       throw new Error("Empty response from scenario generation model");
     }
 
     const parsed = JSON.parse(content);
-    scenarios.push(parsed);
+    scenarios.push({ ...parsed, difficulty: difficulties[index] });
 
     totalPromptTokens += response.usage?.prompt_tokens ?? 0;
     totalCompletionTokens += response.usage?.completion_tokens ?? 0;

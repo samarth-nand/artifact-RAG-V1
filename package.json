@@ -17,7 +17,7 @@
     "db:generate": "drizzle-kit generate:sqlite",
     "ingest": "tsx scripts/ingest-pdfs.ts",
     "setup-ingest": "tsx scripts/setup-auto-ingest.ts",
-    "test": "node --test"
+    "test": "node --import=tsx/esm --test src/shared/__tests__/zod.test.ts src/recruiter/__tests__/scenarios.test.ts src/util/__tests__/time.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.540.0",

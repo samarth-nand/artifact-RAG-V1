@@ -24,6 +24,7 @@ import {
   getAdminExemplars,
   postAdminExemplarVerify,
   postGenerateScenarios,
+  postRegenerateScenario,
   postAssessmentInvite,
   getAssessmentLeaderboard,
   getCandidateScorecard,
@@ -84,6 +85,7 @@ const waitForSessionResultsHandler = waitForSessionResults as unknown as LambdaH
 const getAdminExemplarsHandler = getAdminExemplars as unknown as LambdaHandler;
 const postAdminExemplarVerifyHandler = postAdminExemplarVerify as unknown as LambdaHandler;
 const postGenerateScenariosHandler = postGenerateScenarios as unknown as LambdaHandler;
+const postRegenerateScenarioHandler = postRegenerateScenario as unknown as LambdaHandler;
 const postAssessmentInviteHandler = postAssessmentInvite as unknown as LambdaHandler;
 const getAssessmentLeaderboardHandler = getAssessmentLeaderboard as unknown as LambdaHandler;
 const getCandidateScorecardHandler = getCandidateScorecard as unknown as LambdaHandler;
@@ -263,6 +265,14 @@ app.post("/recruiter/roles/:roleId/generate-scenarios", async (req: Request, res
   const event = expressToLambdaEvent(req);
   event.pathParameters = { roleId: req.params.roleId };
   const result = await postGenerateScenariosHandler(event);
+  sendResult(res, result);
+});
+
+// Regenerate a single scenario within an assessment
+app.post("/recruiter/assessments/:assessmentId/scenarios/:scenarioId/regenerate", async (req: Request, res: Response) => {
+  const event = expressToLambdaEvent(req);
+  event.pathParameters = { assessmentId: req.params.assessmentId, scenarioId: req.params.scenarioId };
+  const result = await postRegenerateScenarioHandler(event);
   sendResult(res, result);
 });
 

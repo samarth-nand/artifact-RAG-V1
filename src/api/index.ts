@@ -17,6 +17,7 @@ export { submitAssessment as postAssessmentSessionSubmit } from "./assessment/se
 export { waitForSessionResults } from "./sessions.wait";
 export { getAdminExemplars, postAdminExemplarVerify } from "./exemplars.admin";
 export { postGenerateScenarios } from "./recruiter/roles.generateScenarios";
+export { postRegenerateScenario } from "./recruiter/assessments.scenarios.regenerate";
 export { postAssessmentInvite } from "./recruiter/assessments.invite";
 export { getAssessmentLeaderboard } from "./recruiter/assessments.leaderboard";
 export { getCandidateScorecard } from "./recruiter/assessments.scorecard";

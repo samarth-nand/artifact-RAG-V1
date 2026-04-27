@@ -133,6 +133,7 @@ export const postGenerateScenarios: APIGatewayProxyHandlerV2 = async (event) => 
       count,
       types,
       additionalContext: request.additionalContext,
+      difficulties: request.difficulties,
     });
 
     // 9. Enrich with IDs and type labels

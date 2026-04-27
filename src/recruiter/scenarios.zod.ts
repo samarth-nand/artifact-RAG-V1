@@ -19,6 +19,9 @@ export const SCENARIO_TYPE_LABELS: Record<ScenarioType, string> = {
   technical: "Technical Deep-Dive",
 };
 
+export const DifficultyEnum = z.enum(["easy", "medium", "hard"]);
+export type Difficulty = z.infer<typeof DifficultyEnum>;
+
 // ============================================================================
 // Request Schema
 // ============================================================================
@@ -26,6 +29,7 @@ export const SCENARIO_TYPE_LABELS: Record<ScenarioType, string> = {
 export const GenerateScenariosRequestSchema = z.object({
   count: z.number().int().min(1).max(10).default(4),
   types: z.array(ScenarioTypeEnum).min(1).optional(),
+  difficulties: z.array(DifficultyEnum).optional(),
   additionalContext: z.string().max(2000).optional(),
   force: z.boolean().default(false),
 });
@@ -76,6 +80,22 @@ export const FollowUpSchema = z.object({
 export type FollowUp = z.infer<typeof FollowUpSchema>;
 
 // ============================================================================
+// Case Exhibit (visual material for candidates)
+// ============================================================================
+
+export const ExhibitTypeEnum = z.enum(["data_table", "text_brief", "metric_set"]);
+export type ExhibitType = z.infer<typeof ExhibitTypeEnum>;
+
+export const CaseExhibitSchema = z.object({
+  type: ExhibitTypeEnum,
+  title: z.string(),
+  description: z.string(),
+  content: z.string(),
+});
+
+export type CaseExhibit = z.infer<typeof CaseExhibitSchema>;
+
+// ============================================================================
 // Single Scenario
 // ============================================================================
 
@@ -83,8 +103,10 @@ export const GeneratedScenarioSchema = z.object({
   id: z.string(),
   type: ScenarioTypeEnum,
   typeLabel: z.string(),
+  difficulty: DifficultyEnum,
   title: z.string(),
   constraints: z.array(z.string()),
+  exhibits: z.array(CaseExhibitSchema).default([]),
   mainQuestion: z.string(),
   followUps: z.array(FollowUpSchema).min(1).max(5),
   gradingCriteria: GradingCriteriaSchema,
@@ -118,8 +140,17 @@ export const LLMScenariosOutputSchema = z.object({
   scenarios: z.array(
     z.object({
       type: ScenarioTypeEnum,
+      difficulty: DifficultyEnum,
       title: z.string(),
       constraints: z.array(z.string()),
+      exhibits: z.array(
+        z.object({
+          type: ExhibitTypeEnum,
+          title: z.string(),
+          description: z.string(),
+          content: z.string(),
+        })
+      ),
       mainQuestion: z.string(),
       followUps: z.array(
         z.object({
